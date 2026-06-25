@@ -180,6 +180,7 @@
   .dt{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
   .dt.c{color:var(--crane)} .dt.p{color:var(--pile)} .dt.muted{color:var(--line2)}
   .est{font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;background:var(--amber-soft);color:#8a5410;margin-left:4px}
+  .est.future{background:var(--secondary-soft);color:var(--secondary)}
   .gantt{display:flex;height:22px;border-radius:6px;overflow:hidden;background:var(--c-low);min-width:200px}
   .gseg{height:100%}
 
@@ -380,7 +381,7 @@
         <div><div class="row"><b>달력 환산</b> · 순작업일수 → 달력일수 <code>×1.45</code></div>
           <div class="src">검증: 25층 아파트 535작업일 → 약 26개월 · 교차검증: 홍콩 7~9일/층, 페루 11~15일 — 국내 8일/층 정합</div></div>
         <div><div class="row"><b>데이터</b> · 건축HUB 건축인허가정보 (ArchPmsHubService)</div>
-          <div class="src">getApBasisOulnInfo · 착공일=실제착공일 우선, 미상 시 허가일+90일 · 지도: MapLibre + CARTO(키 불필요)</div></div>
+          <div class="src">getApBasisOulnInfo · <b>권역당 여러 법정동 조회</b>로 표본 확대 · 착공일=실제착공일 우선 · <b style="color:var(--secondary)">착공 전 허가 현장은 용도별 리드타임(공동주택 6개월·기타 3개월)으로 미래 착공 추정 → 선행예측</b> · 준공(사용승인) 현장은 제외</div></div>
         <div><div class="row"><b>AI 개입</b> · Gemini <code>gemini-3.5-flash</code> (해석·생성 전용)</div>
           <div class="src">① 인사이트 제언 ② 자연어 검색→필터 ③ 발주 브리핑 ④ 권역 패턴 설명 · <b style="color:var(--crane)">AI는 숫자를 만들지 않음</b> — 모든 수치는 표준공기 엔진이 계산, AI는 해석·표현만 → 할루시네이션 차단</div></div>
         <div><div class="row"><b>한계</b> · 건축법 범위 한정 · 시장 전체 수요</div>
@@ -524,16 +525,58 @@ function makeInsights(buckets){
 
 /* API */
 const API_BASE='https://apis.data.go.kr/1613000/ArchPmsHubService';
+/* 전국 주요 건설 권역 — 권역당 여러 시군구·법정동 조회
+   areas: [{sgg:시군구5자리, bdongs:[읍면동5자리,...]}]
+   bdongs는 검증된 주요 동 + 패턴 생성 동을 섞어 표본 확대 */
+function genBdongs(prefixes){return prefixes;} // 가독성용
 const REGIONS=[
-  {code:'41135',bdong:'11000',name:'성남 분당',lat:37.382,lng:127.118},
-  {code:'11680',bdong:'10300',name:'서울 강남',lat:37.517,lng:127.047},
-  {code:'11650',bdong:'10800',name:'서울 서초',lat:37.484,lng:127.033},
-  {code:'41131',bdong:'10100',name:'성남 수정',lat:37.450,lng:127.146},
-  {code:'28245',bdong:'10100',name:'인천 서구',lat:37.545,lng:126.676},
-  {code:'28260',bdong:'10100',name:'인천 연수',lat:37.410,lng:126.678},
-  {code:'41465',bdong:'10100',name:'용인 기흥',lat:37.275,lng:127.115},
-  {code:'26350',bdong:'10100',name:'부산 해운대',lat:35.163,lng:129.163}
+  {name:'서울 강남권',lat:37.505,lng:127.05,areas:[
+    {sgg:'11680',bdongs:['10300','10800','10600','11000','10100']}, // 강남: 역삼,대치,논현,삼성,신사
+    {sgg:'11650',bdongs:['10800','10100','10600','11000']},          // 서초: 서초,방배,잠원,반포
+    {sgg:'11710',bdongs:['10100','10300','11000','11400']}           // 송파: 잠실,석촌,문정,장지
+  ]},
+  {name:'경기 분당·성남',lat:37.40,lng:127.12,areas:[
+    {sgg:'41135',bdongs:['11000','11100','11800','11900','10800']},  // 분당: 백현,판교,정자,서현,수내
+    {sgg:'41131',bdongs:['10100','10200','10600']},                  // 수정: 신흥,태평,복정
+    {sgg:'41133',bdongs:['10100','10500']}                           // 중원: 성남,상대원
+  ]},
+  {name:'경기 수원·용인',lat:37.28,lng:127.05,areas:[
+    {sgg:'41117',bdongs:['10100','10300','10700','11000']},          // 영통: 매탄,영통,원천,광교
+    {sgg:'41465',bdongs:['10100','10800','11100','12300']},          // 기흥: 신갈,구갈,보정,동백
+    {sgg:'41463',bdongs:['10100','11900']}                           // 수지: 풍덕천,죽전
+  ]},
+  {name:'인천 송도·서구',lat:37.48,lng:126.65,areas:[
+    {sgg:'28260',bdongs:['10500','10700','10800']},                  // 연수: 송도,연수,청학
+    {sgg:'28245',bdongs:['10100','11000','10900','11500']},          // 서구: 검암,청라,경서,가정
+    {sgg:'28177',bdongs:['10100','10700']}                           // 미추홀: 숭의,주안
+  ]},
+  {name:'부산권',lat:35.18,lng:129.07,areas:[
+    {sgg:'26350',bdongs:['10100','10800','11000','10500']},          // 해운대: 우동,중동,좌동,재송
+    {sgg:'26440',bdongs:['10100','11200']},                          // 강서: 대저,명지
+    {sgg:'26290',bdongs:['10100','10600']}                           // 남구: 대연,용호
+  ]},
+  {name:'대구권',lat:35.83,lng:128.62,areas:[
+    {sgg:'27260',bdongs:['10100','10600','11100','11500']},          // 수성: 범어,만촌,황금,시지
+    {sgg:'27290',bdongs:['10100','11700','12400']}                   // 달서: 성당,월성,상인
+  ]},
+  {name:'대전·세종',lat:36.42,lng:127.32,areas:[
+    {sgg:'30200',bdongs:['10100','10600','11200','11800']},          // 유성: 봉명,구암,관평,도룡
+    {sgg:'30170',bdongs:['10100','10900']},                          // 서구: 둔산,갈마
+    {sgg:'36110',bdongs:['10100','10300','11100','11500','12500']}   // 세종: 한솔,새롬,도담,아름,고운
+  ]},
+  {name:'광주권',lat:35.16,lng:126.85,areas:[
+    {sgg:'29200',bdongs:['10100','11400','11900']},                  // 광산: 송정,수완,장덕
+    {sgg:'29140',bdongs:['10100','11300']}                           // 서구: 양동,화정
+  ]}
 ];
+/* 전체 (sgg,bdong) 평탄화 — 캐시·진행률용 */
+function allAreaTasks(regionNames){
+  const tasks=[];
+  REGIONS.filter(r=>regionNames.includes(r.name)).forEach(r=>{
+    r.areas.forEach(a=>a.bdongs.forEach(bd=>tasks.push({region:r.name,sgg:a.sgg,bdong:bd})));
+  });
+  return tasks;
+}
 /* CORS 우회: data.go.kr은 브라우저 직접 호출이 막히므로, 직접→여러 공개 프록시 순차 시도 */
 const PROXY_CHAIN=[
   {name:'직접 호출', wrap:u=>u},
@@ -567,7 +610,10 @@ async function fetchViaProxy(url,customProxy){
   throw lastErr||new Error('모든 경로 실패');
 }
 let SCAN_DIAG={raw:0,parsed:0,filtered:0,sampleKeys:'',firstStart:''}; // 단계별 진단
+const PERMIT_CACHE={}; // (sgg_bdong) → items
 async function fetchPermits(sigunguCd,bjdongCd,customProxy){
+  const ck=sigunguCd+'_'+bjdongCd;
+  if(PERMIT_CACHE[ck])return PERMIT_CACHE[ck];
   const p=new URLSearchParams({serviceKey:SERVICE_KEY,sigunguCd,bjdongCd,numOfRows:'100',pageNo:'1',_type:'json'});
   const text=await fetchViaProxy(`${API_BASE}/getApBasisOulnInfo?${p}`,customProxy);
   // 인증/한도 에러 먼저
@@ -597,6 +643,7 @@ async function fetchPermits(sigunguCd,bjdongCd,customProxy){
     SCAN_DIAG.sampleKeys=Object.keys(items[0]).slice(0,8).join(',');
     SCAN_DIAG.firstStart=items[0].realStcnsDay||items[0].archPmsDay||'(착공일 필드 없음)';
   }
+  PERMIT_CACHE[ck]=items;
   return items;
 }
 /* XML <item> 파싱 (정규식 기반, 의존성 없음) */
@@ -614,9 +661,21 @@ function parseXmlItems(xml){
 function parseYmd(s){if(!s)return null;const t=String(s).replace(/[^0-9]/g,'');if(t.length<8)return null;const d=new Date(+t.slice(0,4),+t.slice(4,6)-1,+t.slice(6,8));return isNaN(d)?null:d;}
 function guessFloors(it){const tot=parseFloat(it.totArea)||0,arch=parseFloat(it.archArea)||0;if(tot>0&&arch>0)return Math.max(1,Math.round(tot/arch));return 0;}
 function parseSite(it){
-  const rs=parseYmd(it.realStcnsDay),pd=parseYmd(it.archPmsDay);let startDate,startEstimated=false;
-  if(rs)startDate=rs;else if(pd){startDate=new Date(pd);startDate.setDate(startDate.getDate()+90);startEstimated=true;}else return null;
-  return{addr:it.platPlc||it.newPlatPlc||'주소미상',bldNm:it.bldNm||'',purpose:it.mainPurpsCdNm||'용도미상',struct:it.strctCdNm||'',totArea:parseFloat(it.totArea)||0,hhld:parseInt(it.hhldCnt)||0,groundFloors:parseInt(it.grndFlrCnt)||guessFloors(it)||1,undergroundFloors:parseInt(it.ugrndFlrCnt)||0,startDate,startEstimated};
+  const rs=parseYmd(it.realStcnsDay),pd=parseYmd(it.archPmsDay),ua=parseYmd(it.useAprDay);
+  const purpose=it.mainPurpsCdNm||'용도미상';
+  let startDate,startEstimated=false,isFuture=false;
+  if(rs){
+    startDate=rs;
+  }else if(pd){
+    // 착공일 없음 → 허가일 기준 추정. 용도별 허가→착공 리드타임
+    const leadDays=isResidential(purpose)?180:90; // 공동주택 약 6개월, 기타 3개월
+    startDate=new Date(pd);startDate.setDate(startDate.getDate()+leadDays);
+    startEstimated=true;
+    isFuture=true; // 허가만 난 미래 착공 예정 현장 = 선행예측 핵심
+  }else return null;
+  // 이미 사용승인(준공)된 현장은 제외 — 장비 수요 끝남
+  if(ua&&ua<new Date())return null;
+  return{addr:it.platPlc||it.newPlatPlc||'주소미상',bldNm:it.bldNm||'',purpose,struct:it.strctCdNm||'',totArea:parseFloat(it.totArea)||0,hhld:parseInt(it.hhldCnt)||0,groundFloors:parseInt(it.grndFlrCnt)||guessFloors(it)||1,undergroundFloors:parseInt(it.ugrndFlrCnt)||0,startDate,startEstimated,isFuture,permitDate:pd};
 }
 
 /* 지도 */
@@ -636,7 +695,7 @@ function initMap(){
 function mapLoadFailed(){
   const c=$('map');if(!c)return;c.style.height='auto';c.style.padding='18px';
   c.innerHTML='<div style="font-size:12px;color:var(--ink3);margin-bottom:12px">지도 타일을 불러오지 못했습니다. 아래에서 권역을 선택하세요.</div><div id="fb" style="display:flex;flex-wrap:wrap;gap:8px"></div>';
-  const fb=$('fb');REGIONS.forEach(r=>{const b=document.createElement('button');b.textContent=r.name;b.style.cssText='font-size:12px;font-weight:600;padding:8px 12px;border:1px solid var(--line2);border-radius:9px;background:var(--card);color:var(--ink2);cursor:pointer';b.onclick=()=>{if(selected.has(r.code))selected.delete(r.code);else selected.add(r.code);b.style.background=selected.has(r.code)?'var(--primary)':'var(--card)';b.style.color=selected.has(r.code)?'#fff':'var(--ink2)';updateSelUI();if(lastResult)renderScope();};fb.appendChild(b);});markers={};
+  const fb=$('fb');REGIONS.forEach(r=>{const b=document.createElement('button');b.textContent=r.name;b.style.cssText='font-size:12px;font-weight:600;padding:8px 12px;border:1px solid var(--line2);border-radius:9px;background:var(--card);color:var(--ink2);cursor:pointer';b.onclick=()=>{if(selected.has(r.name))selected.delete(r.name);else selected.add(r.name);b.style.background=selected.has(r.name)?'var(--primary)':'var(--card)';b.style.color=selected.has(r.name)?'#fff':'var(--ink2)';updateSelUI();if(lastResult)renderScope();};fb.appendChild(b);});markers={};
 }
 function heatColor(t){if(t<0.33)return '#b9b6ab';if(t<0.66)return '#e8a14a';return CLR.crane;}
 function renderMarkers(){
@@ -644,12 +703,12 @@ function renderMarkers(){
   Object.values(markers).forEach(m=>m.remove());markers={};
   REGIONS.forEach(r=>{
     let peak=0,intensity=0;
-    if(lastResult&&lastResult.byRegion[r.code]){const bk=lastResult.byRegion[r.code].buckets;peak=Math.max(...bk.map(b=>b.crane+b.pile));intensity=Math.min(1,peak/8);}
+    if(lastResult&&lastResult.byRegion[r.name]){const bk=lastResult.byRegion[r.name].buckets;peak=Math.max(...bk.map(b=>b.crane+b.pile));intensity=Math.min(1,peak/8);}
     const core=lastResult?(26+intensity*26):28,ring=core+16,color=lastResult?heatColor(intensity):'#9aa0a6';
-    const el=document.createElement('div');el.className='mk'+(selected.has(r.code)?' sel':'');el.style.color=color;
+    const el=document.createElement('div');el.className='mk'+(selected.has(r.name)?' sel':'');el.style.color=color;
     el.innerHTML=`<div class="ring" style="width:${ring}px;height:${ring}px"></div><div class="core" style="width:${core}px;height:${core}px;background:${color}">${lastResult&&peak>0?peak:''}</div><div class="lab">${r.name}</div>`;
-    el.onclick=(e)=>{e.stopPropagation();toggleRegion(r.code);};
-    markers[r.code]=new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([r.lng,r.lat]).addTo(map);
+    el.onclick=(e)=>{e.stopPropagation();toggleRegion(r.name);};
+    markers[r.name]=new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([r.lng,r.lat]).addTo(map);
   });
 }
 function toggleRegion(code){
@@ -658,10 +717,10 @@ function toggleRegion(code){
   updateSelUI();if(lastResult)renderScope();
 }
 function updateSelUI(){$('mapHint').textContent=selected.size?`${selected.size}개 권역 선택됨`:'권역을 클릭해 선택하세요';}
-$('selAll').onclick=()=>{if(selected.size===REGIONS.length)selected.clear();else REGIONS.forEach(r=>selected.add(r.code));Object.entries(markers).forEach(([c,m])=>m.getElement().classList.toggle('sel',selected.has(c)));updateSelUI();if(lastResult)renderScope();};
+$('selAll').onclick=()=>{if(selected.size===REGIONS.length)selected.clear();else REGIONS.forEach(r=>selected.add(r.name));Object.entries(markers).forEach(([c,m])=>m.getElement().classList.toggle('sel',selected.has(c)));updateSelUI();if(lastResult)renderScope();};
 $('advToggle').onclick=()=>{const f=$('proxyField'),f2=$('proxyField2');const show=f.style.display==='flex';f.style.display=show?'none':'flex';f2.style.display=show?'none':'flex';};
 
-(function(){const d=new Date();d.setMonth(d.getMonth()-12);$('baseMonth').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;})();
+(function(){const d=new Date();d.setMonth(d.getMonth()-6);$('baseMonth').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;})();
 if(document.readyState==='complete')initMap();else window.addEventListener('load',initMap);
 
 function setStatus(s,t){$('status').className='status'+(s?' '+s:'');$('statusTxt').textContent=t;}
@@ -671,22 +730,38 @@ function clearErr(){$('errBox').classList.remove('show');}
 $('runBtn').onclick=async()=>{
   clearErr();const baseMonth=$('baseMonth').value;const proxy=$('proxyUrl').value.trim();
   if(selected.size===0){showErr('지도에서 권역을 1개 이상 선택하세요');return;}
+  const taskCount=allAreaTasks([...selected]).length;
+  if(taskCount>25&&!proxy){
+    if(!confirm(`선택한 권역의 법정동 ${taskCount}곳을 조회합니다. 공개 프록시로는 다소 느릴 수 있습니다(약 ${Math.ceil(taskCount*0.4)}초). 계속할까요?\n\n팁: 권역 수를 줄이면 더 빠릅니다.`))return;
+  }
   $('runBtn').disabled=true;$('progress').classList.add('show');setStatus('busy','스캔 중');
-  const regions=[...selected];const byRegion={};let failed=[];let totalRaw=0,totalParsed=0;const cutoff=new Date(new Date(baseMonth+'-01').getTime()-180*86400000);
-  for(let i=0;i<regions.length;i++){
-    const R=REGIONS.find(x=>x.code===regions[i]);
-    $('progTxt').textContent=`[${i+1}/${regions.length}] ${R.name} 인허가 조회…`;$('progPct').textContent=`${Math.round(i/regions.length*100)}%`;$('pfill').style.width=`${Math.round(i/regions.length*100)}%`;
+  const regionNames=[...selected];const byRegion={};let failed=[];let totalRaw=0,totalParsed=0;const cutoff=new Date(new Date(baseMonth+'-01').getTime()-180*86400000);
+  // 선택 권역 초기화
+  regionNames.forEach(rn=>byRegion[rn]={name:rn,sites:[],buckets:[],rawCount:0,parsedCount:0});
+  const tasks=allAreaTasks(regionNames);
+  let done=0;
+  for(const t of tasks){
+    done++;
+    const pct=Math.round(done/tasks.length*100);
+    $('progTxt').textContent=`[${done}/${tasks.length}] ${t.region} · ${t.sgg}-${t.bdong} 조회…`;
+    $('progPct').textContent=`${pct}%`;$('pfill').style.width=`${pct}%`;
     try{
-      const items=await fetchPermits(R.code,R.bdong,proxy);
+      const items=await fetchPermits(t.sgg,t.bdong,proxy);
       const parsed=items.map(parseSite).filter(Boolean);
       const sites=parsed.filter(s=>s.startDate>=cutoff);
-      sites.forEach(s=>s.timeline=buildTimeline(s));
-      byRegion[R.code]={name:R.name,sites,buckets:aggregate(sites,baseMonth,18),rawCount:items.length,parsedCount:parsed.length};
-      totalRaw+=items.length; totalParsed+=parsed.length;
-    }
-    catch(e){failed.push(`${R.name}: ${e.message}`);}
-    await new Promise(r=>setTimeout(r,200));
+      const R=byRegion[t.region];
+      R.sites.push(...sites);R.rawCount+=items.length;R.parsedCount+=parsed.length;
+      totalRaw+=items.length;totalParsed+=parsed.length;
+    }catch(e){failed.push(`${t.region}/${t.bdong}: ${e.message}`);}
+    await new Promise(r=>setTimeout(r,150));
   }
+  // 권역별 집계 + 중복 제거(같은 대지위치+착공일)
+  Object.values(byRegion).forEach(R=>{
+    const seen=new Set();
+    R.sites=R.sites.filter(s=>{const k=s.addr+'|'+s.startDate.getTime();if(seen.has(k))return false;seen.add(k);return true;});
+    R.sites.forEach(s=>s.timeline=buildTimeline(s));
+    R.buckets=aggregate(R.sites,baseMonth,18);
+  });
   $('pfill').style.width='100%';$('progPct').textContent='100%';
   const allSites=Object.values(byRegion).flatMap(r=>r.sites);
   if(allSites.length===0){
@@ -760,7 +835,7 @@ function mdToHtml(t){
 function renderScopeTabs(){
   const tabs=$('scopeTabs');tabs.innerHTML='';
   const mk=(label,key,on)=>{const t=document.createElement('button');t.className='scope-tab'+(on?' on':'');t.textContent=label;t.dataset.key=key;t.onclick=()=>{document.querySelectorAll('.scope-tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');renderScope(key);};tabs.appendChild(t);};
-  mk('전체','__all',true);[...selected].forEach(code=>{const r=lastResult.byRegion[code];if(r&&r.sites.length)mk(r.name,code,false);});
+  mk('전체','__all',true);[...selected].forEach(name=>{const r=lastResult.byRegion[name];if(r&&r.sites.length)mk(r.name,name,false);});
 }
 function renderScope(forceKey){
   if(!lastResult)return;
@@ -779,7 +854,9 @@ function renderScope(forceKey){
   }
 
   const insights=makeInsights(buckets);
-  $('kProj').innerHTML=`${sites.length}<span class="u">개</span>`;$('kProjSub').textContent=scopeName;
+  const futureCnt=sites.filter(s=>s.isFuture).length;
+  $('kProj').innerHTML=`${sites.length}<span class="u">개</span>`;
+  $('kProjSub').innerHTML=futureCnt>0?`착공 ${sites.length-futureCnt} · <span style="color:var(--secondary)">예정 ${futureCnt}</span>`:scopeName;
   const cM=Math.max(...buckets.map(b=>b.crane),0),pM=Math.max(...buckets.map(b=>b.pile),0);
   const cB=buckets.find(b=>b.crane===cM),pB=buckets.find(b=>b.pile===pM);
   $('kCrane').textContent=cM;$('kCraneSub').textContent=cB&&cM>0?`${cB.label} 정점`:'동시 수요';
@@ -818,9 +895,9 @@ function applyAiFilter(sites,scopeKey){
   if(f.region){
     // 권역명 매칭: scopeKey가 전체일 때만 의미. 현장 주소로도 보조 매칭
     const rx=new RegExp(f.region);
-    const matchCodes=REGIONS.filter(r=>rx.test(r.name)).map(r=>r.code);
-    if(matchCodes.length&&lastResult){
-      out=matchCodes.flatMap(c=>lastResult.byRegion[c]?lastResult.byRegion[c].sites:[]);
+    const matchNames=REGIONS.filter(r=>rx.test(r.name)).map(r=>r.name);
+    if(matchNames.length&&lastResult){
+      out=matchNames.flatMap(c=>lastResult.byRegion[c]?lastResult.byRegion[c].sites:[]);
     }
   }
   if(f.minFloors)out=out.filter(s=>s.groundFloors>=f.minFloors);
@@ -858,7 +935,7 @@ function renderMiles(sites){
     tr.innerHTML=`<td class="addr">${addr}${s.bldNm?`<div class="sub">${s.bldNm}</div>`:''}</td>
       <td>${isResidential(s.purpose)?`<span class="pill res">${s.purpose}</span>`:`<span class="pill">${s.purpose}</span>`}<div class="sub">${s.struct||'-'}</div></td>
       <td><span class="dt">${s.groundFloors}F${s.undergroundFloors?`/B${s.undergroundFloors}`:''}</span><div class="sub">${s.hhld?s.hhld+'세대':Math.round(s.totArea).toLocaleString()+'㎡'}</div></td>
-      <td><span class="dt">${fmtD(s.startDate)}</span>${s.startEstimated?'<span class="est">추정</span>':''}</td>
+      <td><span class="dt">${fmtD(s.startDate)}</span>${s.isFuture?'<span class="est future">예정</span>':(s.startEstimated?'<span class="est">추정</span>':'')}</td>
       <td>${pl?`<span class="dt p">${fmtD(pl.start)}</span>`:'<span class="dt muted">없음</span>'}</td>
       <td>${fr?`<span class="dt c">${fmtD(fr.start)}</span>`:'-'}</td>
       <td><div class="gantt">${gantt}</div></td>`;
