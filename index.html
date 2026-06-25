@@ -525,20 +525,46 @@ function makeInsights(buckets){
 /* API */
 const API_BASE='https://apis.data.go.kr/1613000/ArchPmsHubService';
 const REGIONS=[
-  {code:'28245',bdong:'10100',name:'인천 서구',lat:37.545,lng:126.676},
-  {code:'28260',bdong:'10500',name:'인천 연수구',lat:37.410,lng:126.678},
   {code:'41135',bdong:'11000',name:'성남 분당',lat:37.382,lng:127.118},
-  {code:'41465',bdong:'10100',name:'용인 기흥',lat:37.275,lng:127.115},
   {code:'11680',bdong:'10300',name:'서울 강남',lat:37.517,lng:127.047},
-  {code:'26350',bdong:'10100',name:'부산 해운대',lat:35.163,lng:129.163},
-  {code:'47111',bdong:'11000',name:'포항 북구',lat:36.087,lng:129.359},
-  {code:'47113',bdong:'11000',name:'포항 남구',lat:35.989,lng:129.350}
+  {code:'11650',bdong:'10800',name:'서울 서초',lat:37.484,lng:127.033},
+  {code:'41131',bdong:'10100',name:'성남 수정',lat:37.450,lng:127.146},
+  {code:'28245',bdong:'10100',name:'인천 서구',lat:37.545,lng:126.676},
+  {code:'28260',bdong:'10100',name:'인천 연수',lat:37.410,lng:126.678},
+  {code:'41465',bdong:'10100',name:'용인 기흥',lat:37.275,lng:127.115},
+  {code:'26350',bdong:'10100',name:'부산 해운대',lat:35.163,lng:129.163}
 ];
+/* CORS 우회: data.go.kr은 브라우저 직접 호출이 막히므로, 직접→여러 공개 프록시 순차 시도 */
+const PROXY_CHAIN=[
+  {name:'직접 호출', wrap:u=>u},
+  {name:'codetabs', wrap:u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`},
+  {name:'corsproxy.io', wrap:u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`},
+  {name:'allorigins', wrap:u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`},
+  {name:'thingproxy', wrap:u=>`https://thingproxy.freeboard.io/fetch/${u}`}
+];
+let DIAG=[]; // 진단 로그
 async function fetchViaProxy(url,customProxy){
-  if(customProxy){const res=await fetch(customProxy.replace(/\/$/,'')+'/'+url);if(!res.ok)throw new Error(`HTTP ${res.status}`);return await res.text();}
-  try{const res=await fetch(url,{headers:{'Accept':'application/json'}});if(res.ok)return await res.text();}catch(e){}
-  const res=await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,{headers:{'Accept':'application/json'}});
-  if(!res.ok)throw new Error(`연결 실패 (HTTP ${res.status})`);return await res.text();
+  DIAG=[];
+  // 사내 프록시 지정 시 그것만
+  if(customProxy){
+    const wrapped=customProxy.replace(/\/$/,'')+'/'+url;
+    const res=await fetch(wrapped);
+    if(!res.ok)throw new Error(`사내 프록시 HTTP ${res.status}`);
+    return await res.text();
+  }
+  let lastErr;
+  for(const p of PROXY_CHAIN){
+    try{
+      const res=await fetch(p.wrap(url),{headers:{'Accept':'application/json'}});
+      if(!res.ok){DIAG.push(`${p.name}: HTTP ${res.status}`);lastErr=new Error(`HTTP ${res.status}`);continue;}
+      const text=await res.text();
+      // 빈 응답·에러 페이지 거르기
+      if(!text||text.length<10){DIAG.push(`${p.name}: 빈 응답`);lastErr=new Error('빈 응답');continue;}
+      DIAG.push(`${p.name}: ✓ 성공`);
+      return text;
+    }catch(e){DIAG.push(`${p.name}: ${e.message||'차단'}`);lastErr=e;}
+  }
+  throw lastErr||new Error('모든 경로 실패');
 }
 async function fetchPermits(sigunguCd,bjdongCd,customProxy){
   const p=new URLSearchParams({serviceKey:SERVICE_KEY,sigunguCd,bjdongCd,numOfRows:'100',pageNo:'1',_type:'json'});
@@ -612,13 +638,27 @@ $('runBtn').onclick=async()=>{
   for(let i=0;i<regions.length;i++){
     const R=REGIONS.find(x=>x.code===regions[i]);
     $('progTxt').textContent=`[${i+1}/${regions.length}] ${R.name} 인허가 조회…`;$('progPct').textContent=`${Math.round(i/regions.length*100)}%`;$('pfill').style.width=`${Math.round(i/regions.length*100)}%`;
-    try{const items=await fetchPermits(R.code,R.bdong,proxy);const sites=items.map(parseSite).filter(Boolean).filter(s=>s.startDate>=cutoff);sites.forEach(s=>s.timeline=buildTimeline(s));byRegion[R.code]={name:R.name,sites,buckets:aggregate(sites,baseMonth,18)};}
+    try{const items=await fetchPermits(R.code,R.bdong,proxy);const sites=items.map(parseSite).filter(Boolean).filter(s=>s.startDate>=cutoff);sites.forEach(s=>s.timeline=buildTimeline(s));byRegion[R.code]={name:R.name,sites,buckets:aggregate(sites,baseMonth,18),rawCount:items.length};}
     catch(e){failed.push(`${R.name}: ${e.message}`);}
     await new Promise(r=>setTimeout(r,200));
   }
   $('pfill').style.width='100%';$('progPct').textContent='100%';
   const allSites=Object.values(byRegion).flatMap(r=>r.sites);
-  if(allSites.length===0){$('progress').classList.remove('show');$('runBtn').disabled=false;setStatus('','대기');showErr(`분석 가능한 착공 현장이 없습니다. (${failed.length?failed.join(' / '):'데이터 없음'})<br><span style="font-size:11px">연결 차단 시 고급 옵션에서 사내 프록시를 입력하거나 잠시 후 재시도하세요.</span>`);return;}
+  if(allSites.length===0){
+    $('progress').classList.remove('show');$('runBtn').disabled=false;setStatus('','대기');
+    // 연결은 됐는데 데이터가 0인지 구분
+    const gotResponse=Object.values(byRegion).some(r=>r.rawCount>0);
+    const allConnected=Object.keys(byRegion).length>0 && failed.length===0;
+    let msg;
+    if(allConnected||gotResponse){
+      msg=`연결은 성공했지만 선택한 법정동에 최근 착공 현장이 없습니다.<br><span style="font-size:11px;display:block;margin-top:6px">이 앱은 권역별 대표 법정동 1곳만 조회합니다. 데이터가 적은 동일 수 있어요. <b>다른 권역을 선택</b>하거나 <b>기준월을 과거로</b> 바꿔보세요. (예: 2025년)</span>`;
+    }else{
+      const diagHtml=DIAG.length?`<br><span style="font-size:11px;display:block;margin-top:8px;font-family:monospace;color:var(--ink3)">연결 시도: ${DIAG.join(' · ')}</span>`:'';
+      msg=`데이터를 받지 못했습니다. (${failed.length?failed.join(' / '):'연결 실패'})${diagHtml}<br><span style="font-size:11px;display:block;margin-top:6px">모든 공개 프록시가 막혔거나 인증키가 아직 승인 대기 중일 수 있습니다. 잠시 후 재시도하세요.</span>`;
+    }
+    showErr(msg);
+    return;
+  }
   lastResult={byRegion,baseMonth,all:{sites:allSites,buckets:aggregate(allSites,baseMonth,18)}};
   aiFilter=null; // 새 스캔 시 AI 필터 초기화
   renderMarkers();renderScopeTabs();renderScope();
