@@ -228,6 +228,45 @@
   .rchip.on{background:var(--primary);border-color:var(--primary);color:#fff}
   .rchip.on::before{content:'✓';font-size:11px}
 
+  /* 전국 수급 신호등 보드 */
+  .supply-board{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:24px}
+  .sb-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px}
+  .sb-title{font-size:17px;font-weight:800;color:var(--primary);display:flex;align-items:center;gap:9px}
+  .sb-title .material-symbols-outlined{color:var(--crane);font-size:22px}
+  .sb-sub{font-size:12px;font-weight:500;color:var(--ink3);letter-spacing:0}
+  .sb-scan{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:.15s}
+  .sb-scan:hover{background:var(--primary-c)}
+  .sb-scan:disabled{background:var(--line2);cursor:not-allowed}
+  .sb-scan .material-symbols-outlined{font-size:17px}
+  .sb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .sb-empty{grid-column:1/-1;text-align:center;color:var(--ink3);font-size:13px;line-height:1.7;padding:24px 10px}
+  .sb-cell{border:1.5px solid var(--line);border-radius:11px;padding:13px 14px;cursor:pointer;transition:.15s;position:relative;overflow:hidden}
+  .sb-cell:hover{border-color:var(--ink3);transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.06)}
+  .sb-cell.red{background:linear-gradient(135deg,#fdecea,#fff);border-color:#f0b4ad}
+  .sb-cell.amber{background:linear-gradient(135deg,#fbf2e2,#fff);border-color:#f0d4a8}
+  .sb-cell.green{background:linear-gradient(135deg,#e9f6ef,#fff);border-color:#b3ddc6}
+  .sb-cell.gray{background:var(--c-low)}
+  .sb-cell-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .sb-region{font-size:14px;font-weight:700;color:var(--primary)}
+  .sb-light{width:14px;height:14px;border-radius:50%;flex:none}
+  .sb-light.red{background:#e0342a;box-shadow:0 0 0 3px rgba(224,52,42,.18);animation:sbpulse 1.6s infinite}
+  .sb-light.amber{background:#e8a14a;box-shadow:0 0 0 3px rgba(232,161,74,.18)}
+  .sb-light.green{background:#1f9d57;box-shadow:0 0 0 3px rgba(31,157,87,.15)}
+  .sb-light.gray{background:var(--line2)}
+  @keyframes sbpulse{50%{box-shadow:0 0 0 6px rgba(224,52,42,0)}}
+  .sb-metric{font-size:11px;color:var(--ink2);font-weight:600}
+  .sb-metric b{font-size:18px;font-weight:800;color:var(--primary)}
+  .sb-status{font-size:10.5px;font-weight:700;margin-top:3px}
+  .sb-cell.red .sb-status{color:var(--error)}
+  .sb-cell.amber .sb-status{color:#8a5410}
+  .sb-cell.green .sb-status{color:var(--signal)}
+  .sb-legend{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink2)}
+  .sb-lg{display:flex;align-items:center;gap:6px;font-weight:600}
+  .sb-lg .dot{width:10px;height:10px;border-radius:50%}
+  .sb-lg .dot.red{background:#e0342a}.sb-lg .dot.amber{background:#e8a14a}.sb-lg .dot.green{background:#1f9d57}
+  .sb-lg-note{margin-left:auto;color:var(--ink3);font-weight:500}
+  .sb-loading{grid-column:1/-1;text-align:center;color:var(--ink3);font-size:13px;padding:20px}
+
   /* topbar icon buttons */
   .iconbtn{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink2);cursor:pointer;display:grid;place-items:center;transition:.15s}
   .iconbtn:hover{background:var(--c-low);color:var(--primary);border-color:var(--line2)}
@@ -247,6 +286,8 @@
   .modal-b{padding:22px 24px;overflow-y:auto}
   .modal-f{padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px}
   .btn-primary{background:var(--crane);color:#fff;border:none;border-radius:9px;padding:10px 22px;font-weight:700;font-size:14px;cursor:pointer}
+  .btn-ghost{background:none;border:1px solid var(--line2);color:var(--ink2);border-radius:9px;padding:10px 18px;font-weight:600;font-size:14px;cursor:pointer;margin-right:auto}
+  .btn-ghost:hover{background:var(--c-low)}
   .btn-primary:hover{filter:brightness(1.07)}
   .set-field{margin-bottom:20px}
   .set-field>label{display:block;font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}
@@ -338,6 +379,23 @@
         <p>건축인허가 데이터로 건설장비 수요가 언제·어디서 몰릴지 18개월 앞서 예측합니다.</p>
       </div>
     </div>
+
+    <!-- 전국 수급 신호등 보드 -->
+    <section class="supply-board">
+      <div class="sb-head">
+        <div class="sb-title"><span class="material-symbols-outlined">traffic</span>전국 장비 수급 현황 <span class="sb-sub" id="sbSub">지금 어디가 빡빡한지 한눈에</span></div>
+        <button class="sb-scan" id="sbScanBtn"><span class="material-symbols-outlined">radar</span>전국 훑어보기</button>
+      </div>
+      <div class="sb-grid" id="supplyGrid">
+        <div class="sb-empty">「전국 훑어보기」를 누르면 전국 권역의 현재 장비 수급 상태가 신호등으로 표시됩니다. 빨간불 권역이 지금 장비 확보가 시급한 곳입니다.</div>
+      </div>
+      <div class="sb-legend" id="sbLegend" style="display:none">
+        <span class="sb-lg"><span class="dot red"></span>수급 빡빡 (확보 시급)</span>
+        <span class="sb-lg"><span class="dot amber"></span>보통 (주시)</span>
+        <span class="sb-lg"><span class="dot green"></span>여유</span>
+        <span class="sb-lg-note">현재~3개월 내 동시 진행 현장 기준 · 권역 클릭 시 상세 분석</span>
+      </div>
+    </section>
 
     <!-- control -->
     <div class="ctl">
@@ -460,7 +518,7 @@
         <label class="toggle-row"><input type="checkbox" id="rememberKey"> 이 브라우저에 키 저장 (다음에 자동 입력)</label>
       </div>
     </div>
-    <div class="modal-f"><button class="btn-primary" id="settingsSave">저장</button></div>
+    <div class="modal-f"><button class="btn-ghost" id="settingsSkip" style="display:none">키 없이 시작</button><button class="btn-primary" id="settingsSave">저장</button></div>
   </div>
 </div>
 
@@ -474,6 +532,8 @@
           <div class="src">준비 45일 · 가시설/터파기 47일 · 파일기초 14일(+지지력 11) · 지하골조 18일/타설 · 지상골조 셋팅 19일 + <code>일반층 8일/층</code> · 마감 110일 · 정리 30일</div></div>
         <div><div class="row"><b>달력 환산</b> · 순작업일수 → 달력일수 <code>×1.45</code></div>
           <div class="src">검증: 25층 아파트 535작업일 → 약 26개월 · 교차검증: 홍콩 7~9일/층, 페루 11~15일 — 국내 8일/층 정합</div></div>
+        <div><div class="row"><b>타워크레인 판정</b> · 지상 <code>6층 이상</code> 또는 연면적 <code>1만㎡ 이상</code></div>
+          <div class="src">5층 이하 소규모는 이동식 크레인·펌프카로 처리하므로 타워크레인 수요에서 제외 · 1층이라도 대형 물류·공장(1만㎡↑)은 포함 · 층수·면적 정보 부실 현장은 "규모 미상"으로 표시</div></div>
         <div><div class="row"><b>데이터</b> · 건축HUB 건축인허가정보 (ArchPmsHubService)</div>
           <div class="src">getApBasisOulnInfo · <b>권역당 여러 법정동 조회</b>로 표본 확대 · 착공일=실제착공일 우선 · <b style="color:var(--secondary)">착공 전 허가 현장은 용도별 리드타임(공동주택 6개월·기타 3개월)으로 미래 착공 추정 → 선행예측</b> · 준공(사용승인) 현장은 제외</div></div>
         <div><div class="row"><b>AI 개입</b> · Gemini <code>gemini-3.5-flash</code> (해석·생성 전용, 과부하 시 3.1-flash-lite→2.5-flash 자동 폴백)</div>
@@ -631,9 +691,21 @@ const CLR={crane:'#e8841a',pile:'#0058be',rebar:'#ba1a1a',concrete:'#74777d'};
 const STD={prep_taekji:45,earthwork:47,pile:14,pile_test:11,found_direct:15,found_down:16,base_frame:18,setting_floor:19,per_floor:8,finish:110,cleanup:30,cor_small:15,calendarFactor:1.45};
 function needsPile(s,ug,a){const h=/철근콘크리트|철골|철근|SRC|철골철근/.test(s||'');return h&&(ug>=1||(a||0)>=3000);}
 function isResidential(p){return /공동주택|아파트|연립|다세대|오피스텔|도시형/.test(p||'');}
+/* 타워크레인이 실제 필요한 현장인지 판정.
+   - 지상 6층 이상: 타워크레인 일반적
+   - 또는 연면적 10,000㎡ 이상 대형(저층이라도 대형 물류·공장은 타워크레인 가능)
+   - 층수·면적 정보가 부실(0/미상)하면 false (저층 소형으로 오판 방지)
+   ※ 5층 이하 소규모는 이동식 크레인·펌프카로 처리 → 타워크레인 수요 아님 */
+function needsCrane(site){
+  const G=site.groundFloors||0, area=site.totArea||0;
+  if(G>=6)return true;
+  if(area>=10000)return true; // 대형 저층(물류센터·공장 등)
+  return false;
+}
 function buildTimeline(site){
   const{startDate,groundFloors,undergroundFloors,totArea,struct,hhld}=site;
   const small=(hhld>0&&hhld<300);const G=Math.max(groundFloors||1,1);
+  const useCrane=needsCrane(site); // 타워크레인 실제 필요 여부
   let cursor=new Date(startDate);const seg=[];
   const push=(name,days,equip)=>{if(days<=0)return;const cal=days*STD.calendarFactor;const s=new Date(cursor),e=new Date(cursor);e.setDate(e.getDate()+Math.round(cal));seg.push({name,start:s,end:e,days:Math.round(days),equip});cursor=e;};
   push('준비',STD.prep_taekji,['prep']);
@@ -641,10 +713,12 @@ function buildTimeline(site){
   const pile=needsPile(struct,undergroundFloors,totArea);
   if(pile)push('파일기초',STD.pile+STD.pile_test,['pile']);
   push('기초',STD.found_direct+(undergroundFloors>0?STD.found_down:0),['rebar','concrete']);
-  if(undergroundFloors>0)push('지하골조',STD.base_frame*Math.min(undergroundFloors,3),['crane','rebar','concrete']);
-  push('지상골조',STD.setting_floor+(G-1)*STD.per_floor,['crane','rebar','concrete']);
+  // 지하골조: 크레인은 useCrane일 때만
+  if(undergroundFloors>0)push('지하골조',STD.base_frame*Math.min(undergroundFloors,3),useCrane?['crane','rebar','concrete']:['rebar','concrete']);
+  // 지상골조: 크레인은 useCrane일 때만 (저층 소규모는 크레인 없이)
+  push('지상골조',STD.setting_floor+(G-1)*STD.per_floor,useCrane?['crane','rebar','concrete']:['rebar','concrete']);
   push('마감',STD.finish,['finish']);push('정리',STD.cleanup,['cleanup']);
-  return{seg,hasPile:pile,totalDays:Math.round((cursor-new Date(startDate))/86400000)};
+  return{seg,hasPile:pile,hasCrane:useCrane,totalDays:Math.round((cursor-new Date(startDate))/86400000)};
 }
 function aggregate(sites,baseMonth,months=18){
   const[by,bm]=baseMonth.split('-').map(Number);const buckets=[];
@@ -1012,7 +1086,12 @@ $('selAll').onclick=()=>{if(selected.size===REGIONS.length)selected.clear();else
 /* 모달 열기/닫기 */
 function openModal(id){$(id).classList.add('show');}
 function closeModal(id){$(id).classList.remove('show');}
-$('settingsBtn').onclick=()=>openModal('settingsModal');
+$('settingsBtn').onclick=()=>{
+  const h=document.querySelector('#settingsModal .modal-h h3');
+  if(h)h.innerHTML='<span class="material-symbols-outlined">settings</span>설정';
+  $('settingsSkip').style.display='none';
+  openModal('settingsModal');
+};
 $('settingsClose').onclick=()=>closeModal('settingsModal');
 $('helpBtn').onclick=()=>openModal('helpModal');
 $('helpClose').onclick=()=>closeModal('helpModal');
@@ -1025,6 +1104,17 @@ const KEY_STORE='equipradar_gemini_key';
 (function loadKey(){
   try{const saved=localStorage.getItem(KEY_STORE);if(saved){$('geminiKey').value=saved;$('rememberKey').checked=true;}}catch(e){}
 })();
+/* 시작 시: 키가 없으면 설정 화면을 먼저 띄움 */
+(function startupGate(){
+  if(!hasGemini()){
+    // 첫 진입 안내 모드: 건너뛰기 버튼 노출
+    $('settingsSkip').style.display='inline-block';
+    const h=document.querySelector('#settingsModal .modal-h h3');
+    if(h)h.innerHTML='<span class="material-symbols-outlined">rocket_launch</span>시작하기';
+    openModal('settingsModal');
+  }
+})();
+$('settingsSkip').onclick=()=>{closeModal('settingsModal');setStatus('','대기');};
 $('settingsSave').onclick=()=>{
   try{
     if($('rememberKey').checked)localStorage.setItem(KEY_STORE,geminiKey());
@@ -1045,6 +1135,74 @@ if(document.readyState==='complete')initMap();else window.addEventListener('load
 function setStatus(s,t){$('status').className='status'+(s?' '+s:'');$('statusTxt').textContent=t;}
 function showErr(m,warn){const b=$('errBox');b.className='notice '+(warn?'warn':'err')+' show';$('errTxt').innerHTML=m;}
 function clearErr(){$('errBox').classList.remove('show');}
+
+/* ===== 전국 수급 신호등 훑어보기 =====
+   각 권역을 가볍게 샘플링(법정동 일부)해서 현재~3개월 내 동시 진행 현장 수로 수급 강도 판정 */
+function supplyLevel(activeCount){
+  // 현재~3개월 내 골조/항타 동시 진행 현장 수 기준 (권역 샘플 기준 임계)
+  if(activeCount>=6)return {cls:'red',light:'red',label:'수급 빡빡'};
+  if(activeCount>=3)return {cls:'amber',light:'amber',label:'보통'};
+  return {cls:'green',light:'green',label:'여유'};
+}
+$('sbScanBtn').onclick=async()=>{
+  const baseMonth=$('baseMonth').value;
+  const base=new Date(baseMonth+'-01');
+  const horizon=new Date(base.getFullYear(),base.getMonth()+3,1); // 현재~3개월
+  $('sbScanBtn').disabled=true;
+  const grid=$('supplyGrid');
+  grid.innerHTML='<div class="sb-loading">전국 권역을 훑어보는 중… (권역당 일부 표본만 빠르게 조회)</div>';
+  const results=[];
+  for(const r of REGIONS){
+    // 가벼운 샘플: 권역당 앞 3개 법정동만
+    const sampleAreas=r.areas.flatMap(a=>a.bdongs.slice(0,2).map(bd=>({sgg:a.sgg,bdong:bd}))).slice(0,4);
+    let active=0,ok=false;
+    for(const a of sampleAreas){
+      try{
+        const items=await fetchPermits(a.sgg,a.bdong);
+        ok=true;
+        const sites=items.map(parseSite).filter(Boolean);
+        sites.forEach(s=>s.timeline=buildTimeline(s));
+        // 현재~3개월 내 골조·항타 진행(=장비 점유) 현장 카운트
+        sites.forEach(s=>{
+          const busy=s.timeline.seg.some(sg=>(sg.equip.includes('crane')||sg.equip.includes('pile'))&&sg.start<horizon&&sg.end>=base);
+          if(busy)active++;
+        });
+      }catch(e){}
+      await new Promise(x=>setTimeout(x,120));
+    }
+    results.push({region:r.name,active,ok});
+    // 점진적 렌더
+    renderSupplyBoard(results,base);
+  }
+  $('sbLegend').style.display='flex';
+  $('sbSub').textContent=`기준 ${baseMonth} ~ +3개월 · 빨간불 권역이 확보 시급`;
+  $('sbScanBtn').disabled=false;
+};
+function renderSupplyBoard(results,base){
+  const grid=$('supplyGrid');
+  // 빨강→노랑→초록 순 정렬 (시급한 게 위로)
+  const order={red:0,amber:1,green:2,gray:3};
+  const rows=results.map(r=>{
+    const lv=r.ok?supplyLevel(r.active):{cls:'gray',light:'gray',label:'조회 실패'};
+    return {...r,lv};
+  }).sort((a,b)=>order[a.lv.cls]-order[b.lv.cls]);
+  grid.innerHTML=rows.map(r=>`
+    <div class="sb-cell ${r.lv.cls}" onclick="jumpToRegion('${r.region.replace(/'/g,"")}')">
+      <div class="sb-cell-top">
+        <span class="sb-region">${r.region}</span>
+        <span class="sb-light ${r.lv.light}"></span>
+      </div>
+      <div class="sb-metric"><b>${r.ok?r.active:'–'}</b> 동시 진행</div>
+      <div class="sb-status">${r.lv.label}</div>
+    </div>`).join('');
+}
+/* 신호등 셀 클릭 → 해당 권역 선택하고 상세 스캔 */
+function jumpToRegion(name){
+  selected.clear();selected.add(name);
+  syncSelectionUI();
+  $('runBtn').click(); // 상세 스캔 실행
+  document.querySelector('.ctl').scrollIntoView({behavior:'smooth',block:'start'});
+}
 
 $('runBtn').onclick=async()=>{
   clearErr();const baseMonth=$('baseMonth').value;
@@ -1290,10 +1448,10 @@ function renderMiles(sites){
     const tr=document.createElement('tr');
     tr.innerHTML=`<td class="addr">${addr}${s.bldNm?`<div class="sub">${s.bldNm}</div>`:''}</td>
       <td>${isResidential(s.purpose)?`<span class="pill res">${s.purpose}</span>`:`<span class="pill">${s.purpose}</span>`}<div class="sub">${s.struct||'-'}</div></td>
-      <td><span class="dt">${s.groundFloors}F${s.undergroundFloors?`/B${s.undergroundFloors}`:''}</span><div class="sub">${s.hhld?s.hhld+'세대':Math.round(s.totArea).toLocaleString()+'㎡'}</div></td>
+      <td>${(s.groundFloors>=1&&s.totArea>0)?`<span class="dt">${s.groundFloors}F${s.undergroundFloors?`/B${s.undergroundFloors}`:''}</span><div class="sub">${s.hhld?s.hhld+'세대':Math.round(s.totArea).toLocaleString()+'㎡'}</div>`:`<span class="dt muted">규모 미상</span><div class="sub" style="color:var(--line2)">정보 부족</div>`}</td>
       <td><span class="dt">${fmtD(s.startDate)}</span>${s.isFuture?'<span class="est future">예정</span>':(s.startEstimated?'<span class="est">추정</span>':'')}</td>
       <td>${pl?`<span class="dt p">${fmtD(pl.start)}</span>`:'<span class="dt muted">없음</span>'}</td>
-      <td>${fr?`<span class="dt c">${fmtD(fr.start)}</span>`:'-'}</td>
+      <td>${fr?(tl.hasCrane?`<span class="dt c">${fmtD(fr.start)}</span>`:`<span class="dt muted" title="저층·소규모 — 타워크레인 미사용">크레인無</span>`):'-'}</td>
       <td><div class="gantt">${gantt}</div></td>`;
     mb.appendChild(tr);
   });
