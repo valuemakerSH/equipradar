@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>장비레이더 — Equipment Radar</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+  :root{
+    --primary:#041627; --primary-c:#1a2b3c; --secondary:#0058be; --secondary-soft:#e8f0fb;
+    --bg:#f7f9fb; --card:#ffffff; --c-low:#f2f4f6; --c-high:#e6e8ea;
+    --line:#e2e8f0; --line2:#c4c6cd;
+    --ink:#191c1e; --ink2:#44474c; --ink3:#74777d;
+    --error:#ba1a1a; --error-soft:#fdecea; --signal:#0e8a5f; --signal-soft:#e2f4ec;
+    --amber:#e8841a; --amber-soft:#fbeed9;
+    /* 데이터 컬러 — Stitch 팔레트 기반, 가독성 위해 구분 강화 */
+    --crane:#e8841a;    /* 타워크레인 = 앰버(건설 정체성 + 블루와 명확 구분) */
+    --pile:#0058be;     /* 항타기 = 블루 */
+    --rebar:#ba1a1a;    /* 철근 = 레드 */
+    --concrete:#74777d; /* 레미콘 = 그레이 */
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;vertical-align:middle}
+  .material-symbols-outlined.fill{font-variation-settings:'FILL' 1}
+  ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
+  ::selection{background:var(--crane);color:#fff}
+  .tnum{font-variant-numeric:tabular-nums}
+
+  /* sidebar */
+  .sidebar{position:fixed;left:0;top:0;width:248px;height:100vh;background:var(--card);border-right:1px solid var(--line);padding:26px 16px;display:flex;flex-direction:column;z-index:40}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:30px;padding:0 6px}
+  .brand-ic{width:40px;height:40px;border-radius:10px;background:var(--primary);display:grid;place-items:center;color:#fff;flex:none;position:relative;overflow:hidden}
+  .brand-ic .sweep{position:absolute;inset:0;transform-origin:50% 50%;animation:sweep 3.5s linear infinite}
+  @keyframes sweep{to{transform:rotate(360deg)}}
+  .brand h1{font-size:17px;font-weight:700;color:var(--primary);letter-spacing:-0.3px;line-height:1.1}
+  .brand p{font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.8px;margin-top:2px}
+  .nav{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+  .nav a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:9px;color:var(--ink2);font-weight:500;font-size:14px;text-decoration:none;transition:.15s;cursor:pointer}
+  .nav a .material-symbols-outlined{font-size:21px;color:var(--ink3)}
+  .nav a:hover{background:var(--c-low)}
+  .nav a.on{background:var(--secondary);color:#fff;font-weight:600}
+  .nav a.on .material-symbols-outlined{color:#fff}
+  .nav-foot{margin-top:auto;border-top:1px solid var(--line);padding-top:12px}
+
+  /* main */
+  .main{margin-left:248px;min-height:100vh;display:flex;flex-direction:column}
+  .topbar{height:64px;position:sticky;top:0;z-index:30;background:rgba(247,249,251,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 32px}
+  .topbar .title{font-size:17px;font-weight:700;color:var(--primary)}
+  .topbar .right{display:flex;align-items:center;gap:10px}
+  .status{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;padding:6px 12px;border:1px solid var(--line);border-radius:100px;background:var(--card)}
+  .status .led{width:7px;height:7px;border-radius:50%;background:var(--line2);transition:.3s}
+  .status.on .led{background:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
+  .status.busy .led{background:var(--amber);animation:bp 1s infinite}
+  @keyframes bp{50%{opacity:.3}}
+
+  .canvas{padding:28px 32px 60px;max-width:1440px;width:100%}
+
+  .pagehead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:14px}
+  .pagehead h2{font-size:30px;font-weight:800;color:var(--primary);letter-spacing:-0.7px}
+  .pagehead p{font-size:14px;color:var(--ink2);margin-top:3px}
+
+  /* control bar */
+  .ctl{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:24px}
+  .cfield{display:flex;flex-direction:column;gap:6px}
+  .cfield label{font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px}
+  .inp{background:var(--card);border:1px solid var(--line2);border-radius:9px;color:var(--ink);padding:9px 12px;font-size:13px;font-family:var(--sans);transition:.15s}
+  .inp:focus{outline:none;border-color:var(--secondary);box-shadow:0 0 0 3px var(--secondary-soft)}
+  .cfield.proxy{display:none}
+  .cfield.proxy .inp{width:220px;font-size:12px}
+  .hintbtn{font-size:12px;color:var(--secondary);cursor:pointer;background:none;border:none;text-decoration:underline;padding:3px 0;text-align:left}
+  .adv{font-size:9px;color:var(--secondary);cursor:pointer;text-decoration:underline}
+  .runbtn{margin-left:auto;background:var(--crane);color:#fff;border:none;border-radius:10px;padding:11px 22px;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:.15s}
+  .runbtn:hover{filter:brightness(1.07)}
+  .runbtn:disabled{background:var(--line2);cursor:not-allowed}
+  .runbtn .material-symbols-outlined{font-size:18px}
+
+  /* notices */
+  .notice{border-radius:10px;padding:13px 16px;font-size:13px;display:none;align-items:flex-start;gap:9px;line-height:1.5;margin-bottom:20px}
+  .notice.show{display:flex}
+  .notice.err{background:var(--error-soft);border:1px solid var(--error);color:#8f1410}
+  .notice.warn{background:var(--amber-soft);border:1px solid var(--amber);color:#8a5410}
+  .progress{background:var(--primary);border-radius:12px;padding:18px 22px;color:#fff;display:none;margin-bottom:20px}
+  .progress.show{display:block}
+  .progress .pt{font-size:12.5px;display:flex;justify-content:space-between;color:#b7c8de}
+  .progress .pt b{color:#fff}
+  .ptrack{height:6px;background:rgba(255,255,255,.15);border-radius:4px;margin-top:12px;overflow:hidden}
+  .pfill{height:100%;width:0;background:var(--crane);border-radius:4px;transition:width .35s}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;transition:.2s;display:flex;flex-direction:column;justify-content:space-between;min-height:128px}
+  .kpi:hover{transform:translateY(-2px);box-shadow:0 4px 12px -2px rgba(0,0,0,.06);border-color:var(--line2)}
+  .kpi-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+  .kpi-lab{font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px}
+  .kpi-ic{width:32px;height:32px;border-radius:9px;background:var(--c-low);display:grid;place-items:center;flex:none}
+  .kpi-ic .material-symbols-outlined{font-size:18px}
+  .kpi-val{font-size:30px;font-weight:800;color:var(--primary);letter-spacing:-1px;line-height:1}
+  .kpi-val .u{font-size:16px;font-weight:500;color:var(--ink3)}
+  .kpi-sub{font-size:12px;color:var(--ink3);margin-top:7px;display:flex;align-items:center;gap:4px}
+  .kpi.danger{background:var(--error-soft);border-color:rgba(186,26,26,.3)}
+  .kpi.danger .kpi-val{font-size:24px}
+  .kpi.crane .kpi-ic{background:var(--amber-soft);color:var(--crane)}
+  .kpi.pile .kpi-ic{background:var(--secondary-soft);color:var(--pile)}
+  .kpi.order .kpi-ic{background:var(--signal-soft);color:var(--signal)}
+  .kpi.order .kpi-val{font-size:22px;color:var(--signal)}
+
+  /* grid */
+  .grid12{display:grid;grid-template-columns:repeat(12,1fr);gap:16px;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column}
+  .col5{grid-column:span 5} .col7{grid-column:span 7} .col4{grid-column:span 4} .col8{grid-column:span 8}
+  .card-h{padding:18px 22px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+  .card-h h3{font-size:16px;font-weight:600;color:var(--primary)}
+  .card-h .sub{font-size:12px;color:var(--ink3);margin-top:2px}
+  .card-h .meta{font-size:11px;color:var(--ink3);font-variant-numeric:tabular-nums}
+  .card-b{padding:20px 22px}
+
+  /* map */
+  #map{width:100%;height:444px;border-radius:0 0 12px 12px}
+  .mapwrap{position:relative;flex:1;min-height:444px}
+  .maplibregl-popup-content{font-family:var(--sans);border-radius:9px;padding:9px 12px;box-shadow:0 6px 22px rgba(0,0,0,.13)}
+  .heatleg{display:flex;align-items:center;justify-content:center;gap:18px;font-size:12px;color:var(--ink3);padding:14px}
+  .heatleg .d{display:flex;align-items:center;gap:6px}
+  .heatleg .sw{width:11px;height:11px;border-radius:50%}
+  .mk{cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s}
+  .mk:hover{transform:scale(1.12)}
+  .mk .ring{position:absolute;border-radius:50%;border:1.5px solid currentColor;opacity:.35}
+  .mk .core{border-radius:50%;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.22);display:grid;place-items:center;font-weight:800;color:#fff;font-size:12px}
+  .mk.sel .core{outline:3px solid var(--primary);outline-offset:2px}
+  .mk .lab{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:5px;font-size:10px;font-weight:700;color:var(--primary);background:rgba(255,255,255,.9);padding:1px 7px;border-radius:5px;white-space:nowrap;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+
+  /* chart */
+  .chart-wrap{height:380px;position:relative}
+  .scope-tabs{display:flex;gap:5px;background:var(--c-low);padding:4px;border-radius:9px;border:1px solid var(--line)}
+  .scope-tab{padding:6px 12px;font-size:12px;font-weight:600;border:none;background:none;color:var(--ink3);border-radius:6px;cursor:pointer}
+  .scope-tab.on{background:var(--card);color:var(--primary);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+  /* insights */
+  .ins-h{font-size:16px;font-weight:600;color:var(--primary);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .ins-h .material-symbols-outlined{color:var(--crane)}
+  .inslist{display:flex;flex-direction:column;gap:12px}
+  .inscard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px;position:relative;overflow:hidden;transition:.15s}
+  .inscard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
+  .inscard.alert::before{background:var(--error)} .inscard.alert:hover{border-color:var(--error)}
+  .inscard.hold::before{background:var(--amber)} .inscard.hold:hover{border-color:var(--amber)}
+  .inscard.signal::before{background:var(--signal)} .inscard.signal:hover{border-color:var(--signal)}
+  .ins-row{display:flex;gap:12px;align-items:flex-start}
+  .ins-ic{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none;margin-top:1px}
+  .inscard.alert .ins-ic{background:var(--error-soft);color:var(--error)}
+  .inscard.hold .ins-ic{background:var(--amber-soft);color:var(--amber)}
+  .inscard.signal .ins-ic{background:var(--signal-soft);color:var(--signal)}
+  .ins-ic .material-symbols-outlined{font-size:19px}
+  .ins-when{font-size:15px;font-weight:700;color:var(--primary);margin-bottom:5px;letter-spacing:-0.2px}
+  .ins-msg{font-size:13px;color:var(--ink2);line-height:1.55}
+  .ins-msg b{color:var(--primary);font-weight:700}
+  .ins-badge{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:5px;margin-top:11px}
+  .inscard.alert .ins-badge{background:var(--error-soft);color:var(--error)}
+  .inscard.hold .ins-badge{background:var(--amber-soft);color:#8a5410}
+  .inscard.signal .ins-badge{background:var(--signal-soft);color:var(--signal)}
+  .ins-act{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line2);font-size:12px;color:var(--ink2);line-height:1.5}
+  .ins-act b{color:var(--primary)}
+
+  /* table */
+  .tscroll{overflow-x:auto;padding:0 22px 6px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:720px}
+  thead th{font-size:10px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;text-align:left;padding:12px 14px;border-bottom:1.5px solid var(--line2);white-space:nowrap}
+  tbody td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:hover{background:var(--c-low)}
+  td.addr{font-weight:600;color:var(--primary)}
+  td .sub{font-size:11px;color:var(--ink3);font-weight:400;margin-top:2px}
+  .pill{display:inline-block;font-size:10px;font-weight:600;padding:3px 8px;border-radius:5px;background:var(--c-low);border:1px solid var(--line);color:var(--ink2)}
+  .pill.res{background:var(--amber-soft);border-color:#f0d4a8;color:#9a5a08}
+  .dt{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+  .dt.c{color:var(--crane)} .dt.p{color:var(--pile)} .dt.muted{color:var(--line2)}
+  .est{font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;background:var(--amber-soft);color:#8a5410;margin-left:4px}
+  .gantt{display:flex;height:22px;border-radius:6px;overflow:hidden;background:var(--c-low);min-width:200px}
+  .gseg{height:100%}
+
+  /* method */
+  .method{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px 26px;margin-top:16px}
+  .method h4{font-size:14px;font-weight:700;color:var(--primary);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .method h4 .material-symbols-outlined{color:var(--crane);font-size:19px}
+  .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .method .row{font-size:12px;color:var(--ink2);line-height:1.6;margin-bottom:6px}
+  .method .row b{color:var(--primary);font-weight:700}
+  .method code{font-size:11px;background:var(--c-low);padding:1px 6px;border-radius:4px;border:1px solid var(--line);color:var(--crane)}
+  .method .src{font-size:11px;color:var(--ink3);line-height:1.55}
+
+  .placeholder{padding:40px;text-align:center;color:var(--ink3);font-size:13px;line-height:1.7}
+
+  /* AI components */
+  .aibar{display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,var(--amber-soft),var(--card));border:1px solid var(--line);border-radius:11px;padding:11px 16px;margin-bottom:24px}
+  .ai-q{flex:1;background:var(--card);border:1px solid var(--line2);border-radius:8px;padding:9px 13px;font-size:13px;font-family:var(--sans)}
+  .ai-q:focus{outline:none;border-color:var(--crane);box-shadow:0 0 0 3px var(--amber-soft)}
+  .ai-go{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .ai-go:hover{background:var(--primary-c)}
+  .ai-go:disabled{background:var(--line2);cursor:not-allowed}
+  .ai-reset{background:none;border:1px solid var(--line2);color:var(--ink3);border-radius:8px;padding:9px 13px;font-size:12px;cursor:pointer}
+  .ai-mini{display:inline-flex;align-items:center;gap:5px;background:var(--primary);color:#fff;border:none;border-radius:7px;padding:6px 11px;font-size:11.5px;font-weight:600;cursor:pointer;transition:.15s}
+  .ai-mini:hover{background:var(--primary-c)}
+  .ai-mini:disabled{background:var(--line2);cursor:not-allowed}
+  .ai-mini .material-symbols-outlined{font-size:15px}
+  .ai-brief{background:linear-gradient(135deg,#fbfcfe,var(--amber-soft));border:1px solid var(--line);border-radius:11px;padding:16px;margin-bottom:14px;font-size:13px;line-height:1.65;color:var(--ink2)}
+  .ai-brief h5{font-size:12px;font-weight:700;color:var(--crane);text-transform:uppercase;letter-spacing:.5px;margin-bottom:9px;display:flex;align-items:center;gap:6px}
+  .ai-brief h5 .material-symbols-outlined{font-size:16px}
+  .ai-brief b{color:var(--primary);font-weight:700}
+  .ai-brief .loading{color:var(--ink3);font-style:italic}
+  .ai-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--crane);background:var(--amber-soft);padding:2px 7px;border-radius:5px;margin-left:7px}
+  .ai-badge .material-symbols-outlined{font-size:12px}
+  .ai-explain{font-size:11px;color:var(--secondary);cursor:pointer;display:inline-flex;align-items:center;gap:3px;margin-top:8px;font-weight:600}
+  .ai-explain:hover{text-decoration:underline}
+  .ai-explain-box{margin-top:8px;padding:10px 12px;background:var(--secondary-soft);border-radius:8px;font-size:12px;line-height:1.55;color:var(--ink2);display:none}
+  .ai-explain-box.show{display:block}
+  .hero-empty{text-align:center;padding:60px 30px}
+  .hero-empty .material-symbols-outlined{font-size:48px;color:var(--line2);margin-bottom:14px}
+  .hero-empty h3{font-size:18px;font-weight:700;color:var(--primary);margin-bottom:8px}
+  .hero-empty p{font-size:13px;color:var(--ink3);max-width:46ch;margin:0 auto;line-height:1.6}
+
+  @media(max-width:1100px){
+    .sidebar{transform:translateX(-100%);transition:.2s} .sidebar.open{transform:none}
+    .main{margin-left:0}
+    .grid12{grid-template-columns:1fr} .col5,.col7,.col4,.col8{grid-column:span 1}
+    .kpis{grid-template-columns:1fr 1fr} .mgrid{grid-template-columns:1fr}
+  }
+  @media(max-width:600px){.kpis{grid-template-columns:1fr} .canvas{padding:18px}}
+  @media(prefers-reduced-motion:reduce){.sweep{animation:none}}
+</style>
+</head>
+<body>
+
+<!-- sidebar -->
+<nav class="sidebar" id="sidebar">
+  <div class="brand">
+    <div class="brand-ic">
+      <svg class="sweep" width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M20 20 L20 4 A16 16 0 0 1 33 11 Z" fill="#e8841a" fill-opacity="0.5"/><line x1="20" y1="20" x2="20" y2="4" stroke="#e8841a" stroke-width="1.5"/></svg>
+      <span class="material-symbols-outlined fill" style="font-size:20px;position:relative">radar</span>
+    </div>
+    <div><h1>장비레이더</h1><p>Equipment Radar</p></div>
+  </div>
+  <div class="nav">
+    <a class="on"><span class="material-symbols-outlined">dashboard</span>대시보드</a>
+    <a onclick="document.getElementById('mapCard').scrollIntoView({behavior:'smooth'})"><span class="material-symbols-outlined">map</span>권역 분석</a>
+    <a onclick="document.getElementById('chartCard').scrollIntoView({behavior:'smooth'})"><span class="material-symbols-outlined">trending_up</span>수요 추이</a>
+    <a onclick="document.getElementById('mileCard').scrollIntoView({behavior:'smooth'})"><span class="material-symbols-outlined">calendar_today</span>현장 일정</a>
+  </div>
+  <div class="nav-foot">
+    <a onclick="document.getElementById('methodCard').scrollIntoView({behavior:'smooth'})"><span class="material-symbols-outlined">info</span>산정 근거</a>
+  </div>
+</nav>
+
+<div class="main">
+  <header class="topbar">
+    <div class="title">장비레이더 · 건설장비 수요 선행포착</div>
+    <div class="right">
+      <div class="status" id="status"><span class="led"></span><span id="statusTxt">대기</span></div>
+    </div>
+  </header>
+
+  <div class="canvas">
+    <div class="pagehead">
+      <div>
+        <h2>수요 예측 대시보드</h2>
+        <p>건축인허가 데이터로 건설장비 수요가 언제·어디서 몰릴지 18개월 앞서 예측합니다.</p>
+      </div>
+    </div>
+
+    <!-- control -->
+    <div class="ctl">
+      <div class="cfield">
+        <label>예측 기준월</label>
+        <input type="month" class="inp" id="baseMonth">
+      </div>
+      <div class="cfield">
+        <label>권역 선택 <span class="adv" id="advToggle">고급</span></label>
+        <button class="hintbtn" id="selAll">지도에서 클릭 · 전체선택/해제</button>
+      </div>
+      <div class="cfield proxy" id="proxyField">
+        <label>Gemini API 키</label>
+        <input type="password" class="inp" id="geminiKey" placeholder="AI 기능용 (gemini-3.5-flash)" style="width:200px">
+      </div>
+      <div class="cfield proxy" id="proxyField2">
+        <label>사내 프록시 (선택)</label>
+        <input type="text" class="inp" id="proxyUrl" placeholder="사내 CORS 프록시 URL">
+      </div>
+      <button class="runbtn" id="runBtn"><span class="material-symbols-outlined">radar</span>수요 스캔</button>
+    </div>
+
+    <!-- AI 자연어 질의 -->
+    <div class="aibar" id="aibar" style="display:none">
+      <span class="material-symbols-outlined" style="color:var(--crane)">auto_awesome</span>
+      <input type="text" class="ai-q" id="aiQuery" placeholder="예: 포항에서 6개월 안에 골조 들어가는 현장만 보여줘 / 25층 이상 아파트만">
+      <button class="ai-go" id="aiGoBtn">AI 검색</button>
+      <button class="ai-reset" id="aiResetBtn" style="display:none">초기화</button>
+    </div>
+
+    <div class="notice err" id="errBox"><span class="material-symbols-outlined" style="font-size:18px">error</span><span id="errTxt"></span></div>
+    <div class="progress" id="progress">
+      <div class="pt"><span id="progTxt">스캔 준비 중…</span><b id="progPct">0%</b></div>
+      <div class="ptrack"><div class="pfill" id="pfill"></div></div>
+    </div>
+
+    <!-- KPI -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="kpi-top"><span class="kpi-lab">분석 현장</span><span class="kpi-ic" style="color:var(--primary)"><span class="material-symbols-outlined">foundation</span></span></div>
+        <div><div class="kpi-val tnum" id="kProj">–</div><div class="kpi-sub" id="kProjSub">인허가 건</div></div>
+      </div>
+      <div class="kpi crane">
+        <div class="kpi-top"><span class="kpi-lab">타워크레인 정점</span><span class="kpi-ic"><span class="material-symbols-outlined">precision_manufacturing</span></span></div>
+        <div><div class="kpi-val tnum" id="kCrane">–</div><div class="kpi-sub" id="kCraneSub">동시 수요</div></div>
+      </div>
+      <div class="kpi pile">
+        <div class="kpi-top"><span class="kpi-lab">항타기 정점</span><span class="kpi-ic"><span class="material-symbols-outlined">construction</span></span></div>
+        <div><div class="kpi-val tnum" id="kPile">–</div><div class="kpi-sub" id="kPileSub">동시 수요</div></div>
+      </div>
+      <div class="kpi order">
+        <div class="kpi-top"><span class="kpi-lab">선점 발주월</span><span class="kpi-ic"><span class="material-symbols-outlined">calendar_month</span></span></div>
+        <div><div class="kpi-val" id="kOrder">–</div><div class="kpi-sub" id="kOrderSub">타워크레인 기준</div></div>
+      </div>
+    </div>
+
+    <!-- map + chart -->
+    <div class="grid12">
+      <section class="card col5" id="mapCard">
+        <div class="card-h"><div><h3>권역 수요 지도</h3><div class="sub" id="mapHint">권역을 클릭해 선택하세요</div></div></div>
+        <div class="mapwrap"><div id="map"></div></div>
+        <div class="heatleg">
+          <div class="d"><span class="sw" style="background:var(--crane)"></span>높음/부족</div>
+          <div class="d"><span class="sw" style="background:var(--amber)"></span>보통</div>
+          <div class="d"><span class="sw" style="background:var(--line2)"></span>낮음</div>
+        </div>
+      </section>
+
+      <section class="card col7" id="chartCard">
+        <div class="card-h">
+          <div><h3>월별 장비 수요 곡선</h3><div class="sub" id="curveMeta">스캔하면 18개월 예측이 표시됩니다</div></div>
+          <div class="scope-tabs" id="scopeTabs"></div>
+        </div>
+        <div class="card-b" style="flex:1">
+          <div class="chart-wrap"><canvas id="curve"></canvas></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- insights + timeline -->
+    <div class="grid12">
+      <section class="col4">
+        <div class="ins-h">
+          <span class="material-symbols-outlined">lightbulb</span>실행 인사이트
+          <button class="ai-mini" id="briefBtn" style="margin-left:auto" title="Gemini 발주 브리핑 생성"><span class="material-symbols-outlined">auto_awesome</span>AI 브리핑</button>
+        </div>
+        <div class="ai-brief" id="aiBrief" style="display:none"></div>
+        <div class="inslist" id="insGrid">
+          <div class="inscard signal"><div class="ins-row"><div class="ins-ic"><span class="material-symbols-outlined">info</span></div><div><div class="ins-when">스캔을 실행하세요</div><div class="ins-msg">권역을 선택하고 수요 스캔을 누르면 발주 시점 인사이트가 여기 표시됩니다.</div></div></div></div>
+        </div>
+      </section>
+
+      <section class="card col8" id="mileCard">
+        <div class="card-h"><div><h3>개별 현장 마일스톤</h3><div class="sub" id="mileMeta">현장별 공정 일정과 장비 투입 구간</div></div></div>
+        <div class="tscroll">
+          <table><thead><tr><th>대지위치</th><th>용도·구조</th><th>규모</th><th>착공</th><th>항타</th><th>골조진입</th><th>공정 타임라인</th></tr></thead>
+          <tbody id="mileBody"><tr><td colspan="7" class="placeholder">스캔 후 착공 임박 현장이 표시됩니다</td></tr></tbody></table>
+        </div>
+      </section>
+    </div>
+
+    <!-- method -->
+    <section class="method" id="methodCard">
+      <h4><span class="material-symbols-outlined">verified</span>산정 근거 & 방법</h4>
+      <div class="mgrid">
+        <div><div class="row"><b>표준공기</b> · 국토부 「적정 공사기간 확보를 위한 가이드라인 2026」 부록 공동주택 가이드라인</div>
+          <div class="src">준비 45일 · 가시설/터파기 47일 · 파일기초 14일(+지지력 11) · 지하골조 18일/타설 · 지상골조 셋팅 19일 + <code>일반층 8일/층</code> · 마감 110일 · 정리 30일</div></div>
+        <div><div class="row"><b>달력 환산</b> · 순작업일수 → 달력일수 <code>×1.45</code></div>
+          <div class="src">검증: 25층 아파트 535작업일 → 약 26개월 · 교차검증: 홍콩 7~9일/층, 페루 11~15일 — 국내 8일/층 정합</div></div>
+        <div><div class="row"><b>데이터</b> · 건축HUB 건축인허가정보 (ArchPmsHubService)</div>
+          <div class="src">getApBasisOulnInfo · 착공일=실제착공일 우선, 미상 시 허가일+90일 · 지도: MapLibre + CARTO(키 불필요)</div></div>
+        <div><div class="row"><b>AI 개입</b> · Gemini <code>gemini-3.5-flash</code> (해석·생성 전용)</div>
+          <div class="src">① 인사이트 제언 ② 자연어 검색→필터 ③ 발주 브리핑 ④ 권역 패턴 설명 · <b style="color:var(--crane)">AI는 숫자를 만들지 않음</b> — 모든 수치는 표준공기 엔진이 계산, AI는 해석·표현만 → 할루시네이션 차단</div></div>
+        <div><div class="row"><b>한계</b> · 건축법 범위 한정 · 시장 전체 수요</div>
+          <div class="src">항타·터파기 확률추정 · 자사 물량 아닌 시장 전체 → "남들도 같은 시기 수요" 관점 · 운영 배포 시 사내 프록시 권장</div></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   장비레이더 v5 — Stitch 디자인 + 작동 엔진
+   ============================================================ */
+const SERVICE_KEY='29e5fa112b6e01e57bb8fe3fee8d90d85da35368f7ee450b9a10287fbe3aea6f';
+
+/* ===== Gemini AI 모듈 (최신 GA: gemini-3.5-flash, 2026.06 기준) ===== */
+const GEMINI_MODEL='gemini-3.5-flash';
+const GEMINI_URL=`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+function geminiKey(){return ($('geminiKey')&&$('geminiKey').value.trim())||'';}
+function hasGemini(){return geminiKey().length>10;}
+
+async function callGemini(prompt,jsonMode){
+  const key=geminiKey();
+  if(!key)throw new Error('Gemini API 키를 입력하세요 (고급 옵션)');
+  const body={contents:[{parts:[{text:prompt}]}]};
+  if(jsonMode)body.generationConfig={responseMimeType:'application/json'};
+  const url=`${GEMINI_URL}?key=${encodeURIComponent(key)}`;
+  let res;
+  try{
+    res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){
+    // CORS 차단 시 프록시 폴백
+    const proxy=$('proxyUrl')?$('proxyUrl').value.trim():'';
+    const wrapped=proxy?proxy.replace(/\/$/,'')+'/'+url:`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    res=await fetch(wrapped,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }
+  if(!res.ok){
+    const t=await res.text();
+    if(res.status===400&&/API_KEY/i.test(t))throw new Error('Gemini 키 오류');
+    if(res.status===429)throw new Error('Gemini 호출 한도 초과');
+    throw new Error(`Gemini 오류 (${res.status})`);
+  }
+  const data=await res.json();
+  const text=data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('')||'';
+  if(!text)throw new Error('Gemini 응답 없음');
+  return text;
+}
+
+/* 수치 요약 헬퍼: AI에 넘길 컴팩트 통계 (숫자는 코드가 만든다) */
+function summarizeBuckets(buckets,scopeName){
+  const cM=Math.max(...buckets.map(b=>b.crane)),pM=Math.max(...buckets.map(b=>b.pile));
+  const cB=buckets.find(b=>b.crane===cM),pB=buckets.find(b=>b.pile===pM);
+  const series=buckets.map(b=>`${b.label}:크${b.crane}항${b.pile}`).join(' ');
+  return `[권역:${scopeName}] 타워크레인 정점 ${cM}건(${cB?cB.label:'-'}), 항타기 정점 ${pM}건(${pB?pB.label:'-'}). 월별(크=타워크레인,항=항타기): ${series}`;
+}
+
+/* ① AI 인사이트 — 규칙기반 인사이트를 담당자 톤으로 재서술 (선택적 보강) */
+async function aiEnhanceInsight(insights,scopeName){
+  if(!hasGemini())return null;
+  const base=insights.map(i=>`- ${i.when}: ${i.msg.replace(/<[^>]+>/g,'')}`).join('\n');
+  const prompt=`너는 대형 건설사 구매팀의 시니어 분석가다. 아래는 코드가 계산한 ${scopeName} 권역의 건설장비 수요 인사이트다. 이 수치를 바탕으로, 구매 담당자에게 보내는 2~3문장의 실전 제언을 한국어로 써라. 새로운 숫자를 지어내지 말고 주어진 수치만 사용해라. 임대단가·리드타임·선점 관점에서 실용적으로. 마크다운 없이 평문으로.\n\n${base}`;
+  return await callGemini(prompt,false);
+}
+
+/* ② 자연어 질의 → 필터 조건 JSON */
+async function aiParseQuery(query){
+  const prompt=`사용자의 자연어 요청을 건설현장 필터 조건 JSON으로 변환해라. 반드시 아래 키만 사용하고, 해당 없으면 생략해라.
+- region: 권역명 일부 (예: "포항","분당","강남","해운대","서구","연수","기흥")
+- maxMonthsToFrame: 골조(타워크레인) 진입까지 N개월 이내 (정수)
+- minFloors: 최소 지상층수 (정수)
+- maxFloors: 최대 지상층수 (정수)
+- residentialOnly: 공동주택 계열만 (true)
+- hasPile: 파일기초 있는 현장만 (true)
+오직 JSON만 출력. 설명 금지.
+
+요청: "${query}"`;
+  const txt=await callGemini(prompt,true);
+  try{return JSON.parse(txt);}catch(e){const m=txt.match(/\{[\s\S]*\}/);if(m)return JSON.parse(m[0]);throw new Error('질의 해석 실패');}
+}
+
+/* ③ 발주 브리핑 — 전체 스캔을 임원 보고용으로 */
+async function aiBriefing(){
+  if(!lastResult)throw new Error('먼저 스캔을 실행하세요');
+  const lines=Object.values(lastResult.byRegion).filter(r=>r.sites.length)
+    .map(r=>summarizeBuckets(r.buckets,r.name)).join('\n');
+  const prompt=`너는 대형 건설사 구매본부장에게 보고하는 분석가다. 아래는 권역별 건설장비 수요 예측 데이터(코드가 계산함)다. 이를 종합해 이번 분기 구매 우선순위 3가지를 임원 보고용으로 작성해라. 각 항목은 "무엇을, 언제, 왜"가 드러나게. 새 숫자 생성 금지, 주어진 수치만 인용. 한국어, 각 항목 1~2문장, 간결하게.\n\n${lines}`;
+  return await callGemini(prompt,false);
+}
+
+/* ④ 이상 패턴 설명 — 특정 권역 수요가 튀는 이유 */
+async function aiExplainRegion(code){
+  const r=lastResult.byRegion[code];if(!r)return;
+  const resCnt=r.sites.filter(s=>isResidential(s.purpose)).length;
+  const bigCnt=r.sites.filter(s=>s.groundFloors>=20).length;
+  const pileCnt=r.sites.filter(s=>s.timeline.hasPile).length;
+  const prompt=`너는 건설장비 수요 분석가다. 아래 ${r.name} 권역 데이터를 보고, 이 지역 장비 수요 패턴의 특징과 이유를 2~3문장으로 설명해라. 데이터에 근거해서만 말하고 추측은 피해라. 한국어 평문.\n\n${summarizeBuckets(r.buckets,r.name)}\n현장 ${r.sites.length}건 중 공동주택 ${resCnt}건, 20층이상 ${bigCnt}건, 파일기초필요 ${pileCnt}건.`;
+  return await callGemini(prompt,false);
+}
+
+/* 데이터 컬러 (CSS var와 동기) */
+const CLR={crane:'#e8841a',pile:'#0058be',rebar:'#ba1a1a',concrete:'#74777d'};
+
+/* 표준공기 엔진 */
+const STD={prep_taekji:45,earthwork:47,pile:14,pile_test:11,found_direct:15,found_down:16,base_frame:18,setting_floor:19,per_floor:8,finish:110,cleanup:30,cor_small:15,calendarFactor:1.45};
+function needsPile(s,ug,a){const h=/철근콘크리트|철골|철근|SRC|철골철근/.test(s||'');return h&&(ug>=1||(a||0)>=3000);}
+function isResidential(p){return /공동주택|아파트|연립|다세대|오피스텔|도시형/.test(p||'');}
+function buildTimeline(site){
+  const{startDate,groundFloors,undergroundFloors,totArea,struct,hhld}=site;
+  const small=(hhld>0&&hhld<300);const G=Math.max(groundFloors||1,1);
+  let cursor=new Date(startDate);const seg=[];
+  const push=(name,days,equip)=>{if(days<=0)return;const cal=days*STD.calendarFactor;const s=new Date(cursor),e=new Date(cursor);e.setDate(e.getDate()+Math.round(cal));seg.push({name,start:s,end:e,days:Math.round(days),equip});cursor=e;};
+  push('준비',STD.prep_taekji,['prep']);
+  push('가시설·터파기',STD.earthwork+(small?STD.cor_small:0),['earth']);
+  const pile=needsPile(struct,undergroundFloors,totArea);
+  if(pile)push('파일기초',STD.pile+STD.pile_test,['pile']);
+  push('기초',STD.found_direct+(undergroundFloors>0?STD.found_down:0),['rebar','concrete']);
+  if(undergroundFloors>0)push('지하골조',STD.base_frame*Math.min(undergroundFloors,3),['crane','rebar','concrete']);
+  push('지상골조',STD.setting_floor+(G-1)*STD.per_floor,['crane','rebar','concrete']);
+  push('마감',STD.finish,['finish']);push('정리',STD.cleanup,['cleanup']);
+  return{seg,hasPile:pile,totalDays:Math.round((cursor-new Date(startDate))/86400000)};
+}
+function aggregate(sites,baseMonth,months=18){
+  const[by,bm]=baseMonth.split('-').map(Number);const buckets=[];
+  for(let i=0;i<months;i++){const d=new Date(by,bm-1+i,1);buckets.push({label:`${String(d.getFullYear()).slice(2)}.${String(d.getMonth()+1).padStart(2,'0')}`,ym:d,crane:0,pile:0,rebar:0,concrete:0});}
+  const ov=(ss,se,b)=>{const n=new Date(b.ym.getFullYear(),b.ym.getMonth()+1,1);return ss<n&&se>=b.ym;};
+  sites.forEach(st=>st.timeline.seg.forEach(s=>buckets.forEach(b=>{if(!ov(s.start,s.end,b))return;if(s.equip.includes('crane'))b.crane++;if(s.equip.includes('pile'))b.pile++;if(s.equip.includes('rebar'))b.rebar++;if(s.equip.includes('concrete'))b.concrete++;})));
+  return buckets;
+}
+function makeInsights(buckets){
+  const ins=[];const eqs=[{k:'crane',name:'타워크레인',lead:'2~3개월',cls:'alert',ic:'priority_high'},{k:'pile',name:'항타기',lead:'1~2개월',cls:'hold',ic:'engineering'}];
+  eqs.forEach(eq=>{
+    let pi=-1,pv=0;buckets.forEach((b,i)=>{if(b[eq.k]>pv){pv=b[eq.k];pi=i;}});if(pv<=0)return;
+    const vals=buckets.map(b=>b[eq.k]);const fz=vals.findIndex(v=>v>0);const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+    if(pv<avg*1.6){const oi=Math.max(0,fz-1);ins.push({cls:'signal',ic:'handshake',badge:'지속 수요',when:`${buckets[Math.max(0,oi)].label}부터 상시 확보`,msg:`${eq.name} 수요가 <b>${buckets[fz].label}~${buckets[pi].label}</b> 평탄(평균 ${avg.toFixed(1)}, 정점 ${pv}). <b>꾸준한 확보</b>가 관건.`,act:`장기 임대·연간계약이 스팟보다 유리. 리드타임 ${eq.lead}.`});}
+    else{let si=pi;for(let i=Math.max(1,fz);i<=pi;i++){if(buckets[i][eq.k]-buckets[i-1][eq.k]>=Math.max(2,pv*0.3)){si=i;break;}}const oi=Math.max(0,si-1);ins.push({cls:eq.cls,ic:eq.ic,badge:'수요 급증',when:`${buckets[oi].label} 선점 발주`,msg:`<b>${buckets[pi].label}</b>에 ${eq.name} 수요 <b>${pv}개 현장</b> 급증. 임대 가용량 압박.`,act:`리드타임 ${eq.lead}, <b>${buckets[oi].label}</b>까지 선점 발주 권장. 남들도 같은 시기에 찾습니다.`,orderLabel:buckets[oi].label});}
+  });
+  let li=0,lv=1e9;buckets.forEach((b,i)=>{const t=b.crane+b.pile;if(t<lv){lv=t;li=i;}});
+  ins.push({cls:'signal',ic:'savings',badge:'협상 적기',when:`${buckets[li].label} 수요 저점`,msg:`장비 수요 최저 (크레인+항타 ${lv}). 임대단가 협상 유리.`,act:`정기계약 갱신·신규 임대 협상 적기.`});
+  return ins;
+}
+
+/* API */
+const API_BASE='https://apis.data.go.kr/1613000/ArchPmsHubService';
+const REGIONS=[
+  {code:'28245',bdong:'10100',name:'인천 서구',lat:37.545,lng:126.676},
+  {code:'28260',bdong:'10500',name:'인천 연수구',lat:37.410,lng:126.678},
+  {code:'41135',bdong:'11000',name:'성남 분당',lat:37.382,lng:127.118},
+  {code:'41465',bdong:'10100',name:'용인 기흥',lat:37.275,lng:127.115},
+  {code:'11680',bdong:'10300',name:'서울 강남',lat:37.517,lng:127.047},
+  {code:'26350',bdong:'10100',name:'부산 해운대',lat:35.163,lng:129.163},
+  {code:'47111',bdong:'11000',name:'포항 북구',lat:36.087,lng:129.359},
+  {code:'47113',bdong:'11000',name:'포항 남구',lat:35.989,lng:129.350}
+];
+async function fetchViaProxy(url,customProxy){
+  if(customProxy){const res=await fetch(customProxy.replace(/\/$/,'')+'/'+url);if(!res.ok)throw new Error(`HTTP ${res.status}`);return await res.text();}
+  try{const res=await fetch(url,{headers:{'Accept':'application/json'}});if(res.ok)return await res.text();}catch(e){}
+  const res=await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,{headers:{'Accept':'application/json'}});
+  if(!res.ok)throw new Error(`연결 실패 (HTTP ${res.status})`);return await res.text();
+}
+async function fetchPermits(sigunguCd,bjdongCd,customProxy){
+  const p=new URLSearchParams({serviceKey:SERVICE_KEY,sigunguCd,bjdongCd,numOfRows:'100',pageNo:'1',_type:'json'});
+  const text=await fetchViaProxy(`${API_BASE}/getApBasisOulnInfo?${p}`,customProxy);
+  let data;try{data=JSON.parse(text);}catch(e){if(/SERVICE_KEY|등록되지/i.test(text))throw new Error('인증키 오류');if(/LIMITED_NUMBER|초과/i.test(text))throw new Error('호출 한도 초과');throw new Error('파싱 실패');}
+  const h=data?.response?.header;if(h&&h.resultCode&&h.resultCode!=='00')throw new Error(h.resultMsg||'API 오류');
+  let items=data?.response?.body?.items?.item||[];if(!Array.isArray(items))items=items?[items]:[];return items;
+}
+function parseYmd(s){if(!s)return null;const t=String(s).replace(/[^0-9]/g,'');if(t.length<8)return null;const d=new Date(+t.slice(0,4),+t.slice(4,6)-1,+t.slice(6,8));return isNaN(d)?null:d;}
+function guessFloors(it){const tot=parseFloat(it.totArea)||0,arch=parseFloat(it.archArea)||0;if(tot>0&&arch>0)return Math.max(1,Math.round(tot/arch));return 0;}
+function parseSite(it){
+  const rs=parseYmd(it.realStcnsDay),pd=parseYmd(it.archPmsDay);let startDate,startEstimated=false;
+  if(rs)startDate=rs;else if(pd){startDate=new Date(pd);startDate.setDate(startDate.getDate()+90);startEstimated=true;}else return null;
+  return{addr:it.platPlc||it.newPlatPlc||'주소미상',bldNm:it.bldNm||'',purpose:it.mainPurpsCdNm||'용도미상',struct:it.strctCdNm||'',totArea:parseFloat(it.totArea)||0,hhld:parseInt(it.hhldCnt)||0,groundFloors:parseInt(it.grndFlrCnt)||guessFloors(it)||1,undergroundFloors:parseInt(it.ugrndFlrCnt)||0,startDate,startEstimated};
+}
+
+/* 지도 */
+const $=id=>document.getElementById(id);
+let selected=new Set(),lastResult=null,map=null,markers={};
+function initMap(){
+  if(typeof maplibregl==='undefined'){
+    if(!window._mlRetry){window._mlRetry=1;const s=document.createElement('script');s.src='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';s.onload=()=>initMap();s.onerror=()=>mapLoadFailed();document.head.appendChild(s);const l=document.createElement('link');l.rel='stylesheet';l.href='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';document.head.appendChild(l);return;}
+    else{mapLoadFailed();return;}
+  }
+  try{
+    map=new maplibregl.Map({container:'map',style:'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',center:[127.6,36.3],zoom:6.0,attributionControl:{compact:true}});
+    map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-right');
+    map.on('load',renderMarkers);map.on('error',()=>{});
+  }catch(e){mapLoadFailed();}
+}
+function mapLoadFailed(){
+  const c=$('map');if(!c)return;c.style.height='auto';c.style.padding='18px';
+  c.innerHTML='<div style="font-size:12px;color:var(--ink3);margin-bottom:12px">지도 타일을 불러오지 못했습니다. 아래에서 권역을 선택하세요.</div><div id="fb" style="display:flex;flex-wrap:wrap;gap:8px"></div>';
+  const fb=$('fb');REGIONS.forEach(r=>{const b=document.createElement('button');b.textContent=r.name;b.style.cssText='font-size:12px;font-weight:600;padding:8px 12px;border:1px solid var(--line2);border-radius:9px;background:var(--card);color:var(--ink2);cursor:pointer';b.onclick=()=>{if(selected.has(r.code))selected.delete(r.code);else selected.add(r.code);b.style.background=selected.has(r.code)?'var(--primary)':'var(--card)';b.style.color=selected.has(r.code)?'#fff':'var(--ink2)';updateSelUI();if(lastResult)renderScope();};fb.appendChild(b);});markers={};
+}
+function heatColor(t){if(t<0.33)return '#b9b6ab';if(t<0.66)return '#e8a14a';return CLR.crane;}
+function renderMarkers(){
+  if(!map||typeof maplibregl==='undefined')return;
+  Object.values(markers).forEach(m=>m.remove());markers={};
+  REGIONS.forEach(r=>{
+    let peak=0,intensity=0;
+    if(lastResult&&lastResult.byRegion[r.code]){const bk=lastResult.byRegion[r.code].buckets;peak=Math.max(...bk.map(b=>b.crane+b.pile));intensity=Math.min(1,peak/8);}
+    const core=lastResult?(26+intensity*26):28,ring=core+16,color=lastResult?heatColor(intensity):'#9aa0a6';
+    const el=document.createElement('div');el.className='mk'+(selected.has(r.code)?' sel':'');el.style.color=color;
+    el.innerHTML=`<div class="ring" style="width:${ring}px;height:${ring}px"></div><div class="core" style="width:${core}px;height:${core}px;background:${color}">${lastResult&&peak>0?peak:''}</div><div class="lab">${r.name}</div>`;
+    el.onclick=(e)=>{e.stopPropagation();toggleRegion(r.code);};
+    markers[r.code]=new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([r.lng,r.lat]).addTo(map);
+  });
+}
+function toggleRegion(code){
+  if(selected.has(code))selected.delete(code);else selected.add(code);
+  Object.entries(markers).forEach(([c,m])=>m.getElement().classList.toggle('sel',selected.has(c)));
+  updateSelUI();if(lastResult)renderScope();
+}
+function updateSelUI(){$('mapHint').textContent=selected.size?`${selected.size}개 권역 선택됨`:'권역을 클릭해 선택하세요';}
+$('selAll').onclick=()=>{if(selected.size===REGIONS.length)selected.clear();else REGIONS.forEach(r=>selected.add(r.code));Object.entries(markers).forEach(([c,m])=>m.getElement().classList.toggle('sel',selected.has(c)));updateSelUI();if(lastResult)renderScope();};
+$('advToggle').onclick=()=>{const f=$('proxyField'),f2=$('proxyField2');const show=f.style.display==='flex';f.style.display=show?'none':'flex';f2.style.display=show?'none':'flex';};
+
+(function(){const d=new Date();$('baseMonth').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;})();
+if(document.readyState==='complete')initMap();else window.addEventListener('load',initMap);
+
+function setStatus(s,t){$('status').className='status'+(s?' '+s:'');$('statusTxt').textContent=t;}
+function showErr(m,warn){const b=$('errBox');b.className='notice '+(warn?'warn':'err')+' show';$('errTxt').innerHTML=m;}
+function clearErr(){$('errBox').classList.remove('show');}
+
+$('runBtn').onclick=async()=>{
+  clearErr();const baseMonth=$('baseMonth').value;const proxy=$('proxyUrl').value.trim();
+  if(selected.size===0){showErr('지도에서 권역을 1개 이상 선택하세요');return;}
+  $('runBtn').disabled=true;$('progress').classList.add('show');setStatus('busy','스캔 중');
+  const regions=[...selected];const byRegion={};let failed=[];const cutoff=new Date(new Date(baseMonth+'-01').getTime()-180*86400000);
+  for(let i=0;i<regions.length;i++){
+    const R=REGIONS.find(x=>x.code===regions[i]);
+    $('progTxt').textContent=`[${i+1}/${regions.length}] ${R.name} 인허가 조회…`;$('progPct').textContent=`${Math.round(i/regions.length*100)}%`;$('pfill').style.width=`${Math.round(i/regions.length*100)}%`;
+    try{const items=await fetchPermits(R.code,R.bdong,proxy);const sites=items.map(parseSite).filter(Boolean).filter(s=>s.startDate>=cutoff);sites.forEach(s=>s.timeline=buildTimeline(s));byRegion[R.code]={name:R.name,sites,buckets:aggregate(sites,baseMonth,18)};}
+    catch(e){failed.push(`${R.name}: ${e.message}`);}
+    await new Promise(r=>setTimeout(r,200));
+  }
+  $('pfill').style.width='100%';$('progPct').textContent='100%';
+  const allSites=Object.values(byRegion).flatMap(r=>r.sites);
+  if(allSites.length===0){$('progress').classList.remove('show');$('runBtn').disabled=false;setStatus('','대기');showErr(`분석 가능한 착공 현장이 없습니다. (${failed.length?failed.join(' / '):'데이터 없음'})<br><span style="font-size:11px">연결 차단 시 고급 옵션에서 사내 프록시를 입력하거나 잠시 후 재시도하세요.</span>`);return;}
+  lastResult={byRegion,baseMonth,all:{sites:allSites,buckets:aggregate(allSites,baseMonth,18)}};
+  aiFilter=null; // 새 스캔 시 AI 필터 초기화
+  renderMarkers();renderScopeTabs();renderScope();
+  if(hasGemini()){$('aibar').style.display='flex';} // AI 키 있으면 자연어 검색 노출
+  $('progress').classList.remove('show');$('runBtn').disabled=false;setStatus('on',`${allSites.length}건 분석완료`);
+  if(failed.length)showErr('일부 권역 조회 실패: '+failed.join(' / '),true);
+};
+
+/* ===== AI 기능 이벤트 ===== */
+let aiFilter=null; // 자연어 질의로 생성된 필터
+
+// ② 자연어 검색
+$('aiGoBtn').onclick=async()=>{
+  const q=$('aiQuery').value.trim();if(!q)return;
+  if(!hasGemini()){showErr('Gemini 키를 입력하세요 (고급 옵션)');return;}
+  $('aiGoBtn').disabled=true;$('aiGoBtn').textContent='해석 중…';
+  try{
+    aiFilter=await aiParseQuery(q);
+    $('aiResetBtn').style.display='inline-block';
+    renderScope(); // 필터 반영해 재렌더
+    setStatus('on','AI 필터 적용됨');
+  }catch(e){showErr('AI 검색 실패: '+e.message);}
+  $('aiGoBtn').disabled=false;$('aiGoBtn').textContent='AI 검색';
+};
+$('aiResetBtn').onclick=()=>{aiFilter=null;$('aiQuery').value='';$('aiResetBtn').style.display='none';renderScope();};
+
+// ③ 발주 브리핑
+$('briefBtn').onclick=async()=>{
+  if(!hasGemini()){showErr('Gemini 키를 입력하세요 (고급 옵션)');return;}
+  if(!lastResult){showErr('먼저 수요 스캔을 실행하세요');return;}
+  const box=$('aiBrief');box.style.display='block';
+  box.innerHTML='<h5><span class="material-symbols-outlined">auto_awesome</span>AI 발주 브리핑</h5><div class="loading">Gemini가 권역 데이터를 분석 중…</div>';
+  $('briefBtn').disabled=true;
+  try{
+    const txt=await aiBriefing();
+    box.innerHTML='<h5><span class="material-symbols-outlined">auto_awesome</span>AI 발주 브리핑 <span class="ai-badge"><span class="material-symbols-outlined">smart_toy</span>'+GEMINI_MODEL+'</span></h5>'+mdToHtml(txt);
+  }catch(e){box.innerHTML='<h5><span class="material-symbols-outlined">error</span>브리핑 실패</h5>'+e.message;}
+  $('briefBtn').disabled=false;
+};
+
+// 간단 마크다운 → HTML (브리핑/제언 표시용)
+function mdToHtml(t){
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+    .replace(/^\s*[\d]+\.\s+/gm,'▸ ')
+    .replace(/^\s*[-*]\s+/gm,'▸ ')
+    .replace(/\n/g,'<br>');
+}
+
+function renderScopeTabs(){
+  const tabs=$('scopeTabs');tabs.innerHTML='';
+  const mk=(label,key,on)=>{const t=document.createElement('button');t.className='scope-tab'+(on?' on':'');t.textContent=label;t.dataset.key=key;t.onclick=()=>{document.querySelectorAll('.scope-tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');renderScope(key);};tabs.appendChild(t);};
+  mk('전체','__all',true);[...selected].forEach(code=>{const r=lastResult.byRegion[code];if(r&&r.sites.length)mk(r.name,code,false);});
+}
+function renderScope(forceKey){
+  if(!lastResult)return;
+  let key=forceKey;
+  if(!key){const on=document.querySelector('.scope-tab.on');key=on?on.dataset.key:'__all';}
+  let sites,buckets,scopeName;
+  if(key==='__all'){const sel=[...selected].filter(c=>lastResult.byRegion[c]);sites=sel.flatMap(c=>lastResult.byRegion[c].sites);buckets=aggregate(sites,lastResult.baseMonth,18);scopeName=`전체 ${sel.length}개 권역`;}
+  else{const r=lastResult.byRegion[key];sites=r.sites;buckets=r.buckets;scopeName=r.name;}
+
+  // ② AI 자연어 필터 적용 (코드가 필터링, 조건은 AI가 추출)
+  if(aiFilter){
+    const before=sites.length;
+    sites=applyAiFilter(sites,key);
+    buckets=aggregate(sites,lastResult.baseMonth,18);
+    scopeName+=` · AI필터(${sites.length}/${before})`;
+  }
+
+  const insights=makeInsights(buckets);
+  $('kProj').innerHTML=`${sites.length}<span class="u">개</span>`;$('kProjSub').textContent=scopeName;
+  const cM=Math.max(...buckets.map(b=>b.crane),0),pM=Math.max(...buckets.map(b=>b.pile),0);
+  const cB=buckets.find(b=>b.crane===cM),pB=buckets.find(b=>b.pile===pM);
+  $('kCrane').textContent=cM;$('kCraneSub').textContent=cB&&cM>0?`${cB.label} 정점`:'동시 수요';
+  $('kPile').textContent=pM;$('kPileSub').textContent=pB&&pM>0?`${pB.label} 정점`:'동시 수요';
+  const ai=insights.find(i=>i.cls==='alert'&&i.orderLabel);$('kOrder').textContent=ai?ai.orderLabel:(cB&&cM>0?cB.label:'–');
+  $('curveMeta').textContent=`${buckets[0].label} – ${buckets[buckets.length-1].label} · 18개월 · ${scopeName}`;
+  drawCurve(buckets);
+  const ig=$('insGrid');ig.innerHTML='';
+  insights.forEach(i=>{const d=document.createElement('div');d.className='inscard '+i.cls;d.innerHTML=`<div class="ins-row"><div class="ins-ic"><span class="material-symbols-outlined">${i.ic}</span></div><div><div class="ins-when">${i.when}</div><div class="ins-msg">${i.msg}</div><span class="ins-badge">${i.badge}</span><div class="ins-act">▸ ${i.act}</div></div></div>`;ig.appendChild(d);});
+
+  // ④ 단일 권역일 때 AI 이상설명 버튼 노출
+  if(key!=='__all'&&hasGemini()){
+    const ex=document.createElement('div');ex.className='inscard signal';
+    ex.innerHTML=`<div class="ins-row"><div class="ins-ic"><span class="material-symbols-outlined">psychology</span></div><div style="flex:1"><div class="ins-when">${scopeName} 패턴 분석</div><div class="ai-explain" id="explainBtn"><span class="material-symbols-outlined" style="font-size:14px">auto_awesome</span>이 권역 수요가 왜 이런지 AI에게 묻기</div><div class="ai-explain-box" id="explainBox"></div></div></div>`;
+    ig.appendChild(ex);
+    setTimeout(()=>{const eb=$('explainBtn');if(eb)eb.onclick=()=>aiExplainHandler(key);},0);
+  }
+
+  // ① AI 인사이트 보강 (키 있으면 첫 인사이트 아래 담당자톤 제언 추가)
+  if(hasGemini()&&insights.length){
+    aiEnhanceInsight(insights,scopeName).then(txt=>{
+      if(!txt)return;
+      const card=document.createElement('div');card.className='inscard signal';
+      card.innerHTML=`<div class="ins-row"><div class="ins-ic"><span class="material-symbols-outlined">auto_awesome</span></div><div><div class="ins-when">AI 종합 제언 <span class="ai-badge"><span class="material-symbols-outlined">smart_toy</span>${GEMINI_MODEL}</span></div><div class="ins-msg">${mdToHtml(txt)}</div></div></div>`;
+      ig.insertBefore(card,ig.firstChild);
+    }).catch(()=>{});
+  }
+
+  renderMiles(sites);
+}
+
+/* ② AI 필터를 실제 현장에 적용 (코드가 수행) */
+function applyAiFilter(sites,scopeKey){
+  let out=sites.slice();
+  const f=aiFilter;
+  if(f.region){
+    // 권역명 매칭: scopeKey가 전체일 때만 의미. 현장 주소로도 보조 매칭
+    const rx=new RegExp(f.region);
+    const matchCodes=REGIONS.filter(r=>rx.test(r.name)).map(r=>r.code);
+    if(matchCodes.length&&lastResult){
+      out=matchCodes.flatMap(c=>lastResult.byRegion[c]?lastResult.byRegion[c].sites:[]);
+    }
+  }
+  if(f.minFloors)out=out.filter(s=>s.groundFloors>=f.minFloors);
+  if(f.maxFloors)out=out.filter(s=>s.groundFloors<=f.maxFloors);
+  if(f.residentialOnly)out=out.filter(s=>isResidential(s.purpose));
+  if(f.hasPile)out=out.filter(s=>s.timeline.hasPile);
+  if(f.maxMonthsToFrame){
+    const base=new Date(lastResult.baseMonth+'-01');
+    out=out.filter(s=>{const fr=s.timeline.seg.find(x=>x.name==='지상골조');if(!fr)return false;const months=(fr.start-base)/(30.4*86400000);return months<=f.maxMonthsToFrame&&months>=-1;});
+  }
+  return out;
+}
+
+/* ④ 이상설명 핸들러 */
+async function aiExplainHandler(code){
+  const box=$('explainBox');if(!box)return;
+  box.classList.add('show');box.innerHTML='<span style="color:var(--ink3)">Gemini 분석 중…</span>';
+  try{const txt=await aiExplainRegion(code);box.innerHTML=mdToHtml(txt);}
+  catch(e){box.innerHTML='분석 실패: '+e.message;}
+}
+function fmtD(d){return `${String(d.getFullYear()).slice(2)}.${String(d.getMonth()+1).padStart(2,'0')}`;}
+function renderMiles(sites){
+  $('mileMeta').textContent=`착공 임박 ${Math.min(12,sites.length)}건`;
+  const sorted=[...sites].sort((a,b)=>a.startDate-b.startDate).slice(0,12);
+  const mb=$('mileBody');
+  if(!sorted.length){mb.innerHTML='<tr><td colspan="7" class="placeholder">현장 없음</td></tr>';return;}
+  const minD=Math.min(...sites.map(s=>+s.startDate)),maxD=Math.max(...sites.map(s=>+s.startDate+s.timeline.totalDays*86400000)),span=maxD-minD||1;
+  const col={'준비':'#cfd3d8','가시설·터파기':'#5b9bd5','파일기초':'#0058be','기초':'#9a9b94','지하골조':'#f0a64a','지상골조':'#e8841a','마감':'#c4c6cd','정리':'#d8dadc'};
+  mb.innerHTML='';
+  sorted.forEach(s=>{
+    const tl=s.timeline,fr=tl.seg.find(x=>x.name==='지상골조'),pl=tl.seg.find(x=>x.name==='파일기초');
+    const gantt=tl.seg.map(sg=>`<div class="gseg" style="width:${(sg.days*STD.calendarFactor*86400000)/span*100}%;background:${col[sg.name]||'#ccc'}" title="${sg.name} ${sg.days}작업일"></div>`).join('');
+    const addr=(s.addr||'').replace(/^[^ ]+ [^ ]+ /,'')||s.addr;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="addr">${addr}${s.bldNm?`<div class="sub">${s.bldNm}</div>`:''}</td>
+      <td>${isResidential(s.purpose)?`<span class="pill res">${s.purpose}</span>`:`<span class="pill">${s.purpose}</span>`}<div class="sub">${s.struct||'-'}</div></td>
+      <td><span class="dt">${s.groundFloors}F${s.undergroundFloors?`/B${s.undergroundFloors}`:''}</span><div class="sub">${s.hhld?s.hhld+'세대':Math.round(s.totArea).toLocaleString()+'㎡'}</div></td>
+      <td><span class="dt">${fmtD(s.startDate)}</span>${s.startEstimated?'<span class="est">추정</span>':''}</td>
+      <td>${pl?`<span class="dt p">${fmtD(pl.start)}</span>`:'<span class="dt muted">없음</span>'}</td>
+      <td>${fr?`<span class="dt c">${fmtD(fr.start)}</span>`:'-'}</td>
+      <td><div class="gantt">${gantt}</div></td>`;
+    mb.appendChild(tr);
+  });
+}
+let chart=null;
+function drawCurve(buckets){
+  if(chart)chart.destroy();const ctx=$('curve').getContext('2d');
+  const grad=(c1,c2)=>{const g=ctx.createLinearGradient(0,0,0,380);g.addColorStop(0,c1);g.addColorStop(1,c2);return g;};
+  chart=new Chart(ctx,{type:'line',data:{labels:buckets.map(b=>b.label),datasets:[
+    {label:'타워크레인',data:buckets.map(b=>b.crane),borderColor:CLR.crane,backgroundColor:grad('rgba(232,132,26,.18)','rgba(232,132,26,.01)'),borderWidth:2.5,tension:.35,pointRadius:0,pointHoverRadius:5,fill:true},
+    {label:'항타기',data:buckets.map(b=>b.pile),borderColor:CLR.pile,backgroundColor:grad('rgba(0,88,190,.14)','rgba(0,88,190,.01)'),borderWidth:2.5,tension:.35,pointRadius:0,pointHoverRadius:5,fill:true},
+    {label:'철근',data:buckets.map(b=>b.rebar),borderColor:CLR.rebar,borderWidth:1.5,borderDash:[5,3],tension:.35,pointRadius:0,fill:false},
+    {label:'레미콘',data:buckets.map(b=>b.concrete),borderColor:CLR.concrete,borderWidth:1.5,borderDash:[2,3],tension:.35,pointRadius:0,fill:false}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:true,position:'bottom',labels:{usePointStyle:true,pointStyle:'line',font:{family:'Inter',size:11.5},color:'#44474c',padding:16,boxWidth:24}},
+      tooltip:{backgroundColor:'#041627',padding:13,cornerRadius:9,titleFont:{family:'Inter',size:12,weight:'600'},bodyFont:{family:'Inter',size:11.5},titleColor:'#fff',bodyColor:'#b7c8de',boxWidth:8,boxHeight:8,boxPadding:4,usePointStyle:true,callbacks:{label:c=>`  ${c.dataset.label}: ${c.parsed.y}개 현장`}}},
+    scales:{x:{grid:{display:false},border:{color:'#c4c6cd'},ticks:{color:'#74777d',font:{family:'Inter',size:10}}},
+      y:{grid:{color:'#eef0f2'},border:{display:false},beginAtZero:true,ticks:{color:'#74777d',font:{family:'Inter',size:10},precision:0,padding:8},title:{display:true,text:'동시 수요 현장 수',color:'#74777d',font:{family:'Inter',size:10.5}}}}}
+  });
+}
+</script>
+</body>
+</html>
