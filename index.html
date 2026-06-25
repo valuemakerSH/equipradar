@@ -196,6 +196,39 @@
 
   .placeholder{padding:40px;text-align:center;color:var(--ink3);font-size:13px;line-height:1.7}
 
+  /* topbar icon buttons */
+  .iconbtn{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink2);cursor:pointer;display:grid;place-items:center;transition:.15s}
+  .iconbtn:hover{background:var(--c-low);color:var(--primary);border-color:var(--line2)}
+  .iconbtn .material-symbols-outlined{font-size:20px}
+
+  /* modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(4,22,39,.42);backdrop-filter:blur(3px);z-index:100;display:none;align-items:center;justify-content:center;padding:24px}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--card);border-radius:16px;width:100%;max-width:460px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25);animation:modalin .18s ease}
+  .modal-wide{max-width:780px}
+  @keyframes modalin{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+  .modal-h{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--line)}
+  .modal-h h3{font-size:17px;font-weight:700;color:var(--primary);display:flex;align-items:center;gap:9px}
+  .modal-h h3 .material-symbols-outlined{font-size:21px;color:var(--crane)}
+  .modal-x{width:32px;height:32px;border-radius:8px;border:none;background:var(--c-low);color:var(--ink2);cursor:pointer;display:grid;place-items:center}
+  .modal-x:hover{background:var(--c-high)}
+  .modal-b{padding:22px 24px;overflow-y:auto}
+  .modal-f{padding:16px 24px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px}
+  .btn-primary{background:var(--crane);color:#fff;border:none;border-radius:9px;padding:10px 22px;font-weight:700;font-size:14px;cursor:pointer}
+  .btn-primary:hover{filter:brightness(1.07)}
+  .set-field{margin-bottom:20px}
+  .set-field>label{display:block;font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}
+  .set-help{font-size:12px;color:var(--ink2);line-height:1.55;margin-top:8px}
+  .set-help a{color:var(--secondary);font-weight:600;text-decoration:none}
+  .set-help a:hover{text-decoration:underline}
+  .toggle-row{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;color:var(--ink2);text-transform:none;letter-spacing:0;cursor:pointer}
+  .modal .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .modal .row{font-size:13px;color:var(--ink2);line-height:1.55;margin-bottom:6px}
+  .modal .row b{color:var(--primary);font-weight:700}
+  .modal .src{font-size:11.5px;color:var(--ink3);line-height:1.55}
+  .modal code{font-size:11px;background:var(--c-low);padding:1px 6px;border-radius:4px;border:1px solid var(--line);color:var(--crane)}
+  @media(max-width:680px){.modal .mgrid{grid-template-columns:1fr}}
+
   /* AI components */
   .aibar{display:flex;align-items:center;gap:10px;background:linear-gradient(90deg,var(--amber-soft),var(--card));border:1px solid var(--line);border-radius:11px;padding:11px 16px;margin-bottom:24px}
   .ai-q{flex:1;background:var(--card);border:1px solid var(--line2);border-radius:8px;padding:9px 13px;font-size:13px;font-family:var(--sans)}
@@ -252,7 +285,7 @@
     <a onclick="document.getElementById('mileCard').scrollIntoView({behavior:'smooth'})"><span class="material-symbols-outlined">calendar_today</span>현장 일정</a>
   </div>
   <div class="nav-foot">
-    <a onclick="document.getElementById('methodCard').scrollIntoView({behavior:'smooth'})"><span class="material-symbols-outlined">info</span>산정 근거</a>
+    <a onclick="openModal('helpModal')"><span class="material-symbols-outlined">info</span>산정 근거</a>
   </div>
 </nav>
 
@@ -261,6 +294,8 @@
     <div class="title">장비레이더 · 건설장비 수요 선행포착</div>
     <div class="right">
       <div class="status" id="status"><span class="led"></span><span id="statusTxt">대기</span></div>
+      <button class="iconbtn" id="settingsBtn" title="설정 (API 키)"><span class="material-symbols-outlined">settings</span></button>
+      <button class="iconbtn" id="helpBtn" title="산정 근거 & 방법"><span class="material-symbols-outlined">help</span></button>
     </div>
   </header>
 
@@ -279,16 +314,8 @@
         <input type="month" class="inp" id="baseMonth">
       </div>
       <div class="cfield">
-        <label>권역 선택 <span class="adv" id="advToggle">고급</span></label>
+        <label>권역 선택</label>
         <button class="hintbtn" id="selAll">지도에서 클릭 · 전체선택/해제</button>
-      </div>
-      <div class="cfield proxy" id="proxyField">
-        <label>Gemini API 키</label>
-        <input type="password" class="inp" id="geminiKey" placeholder="AI 기능용 (gemini-3.5-flash)" style="width:200px">
-      </div>
-      <div class="cfield proxy" id="proxyField2">
-        <label>사내 프록시 (선택)</label>
-        <input type="text" class="inp" id="proxyUrl" placeholder="사내 CORS 프록시 URL">
       </div>
       <button class="runbtn" id="runBtn"><span class="material-symbols-outlined">radar</span>수요 스캔</button>
     </div>
@@ -372,9 +399,34 @@
       </section>
     </div>
 
-    <!-- method -->
-    <section class="method" id="methodCard">
-      <h4><span class="material-symbols-outlined">verified</span>산정 근거 & 방법</h4>
+  </div>
+</div>
+
+<!-- 설정 모달 -->
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <div class="modal-h"><h3><span class="material-symbols-outlined">settings</span>설정</h3><button class="modal-x" id="settingsClose"><span class="material-symbols-outlined">close</span></button></div>
+    <div class="modal-b">
+      <div class="set-field">
+        <label>Gemini API 키 <span class="ai-badge"><span class="material-symbols-outlined">smart_toy</span>AI 기능</span></label>
+        <input type="password" class="inp" id="geminiKey" placeholder="AIza... 키를 입력하세요" autocomplete="off" aria-label="Gemini API 키" style="width:100%">
+        <p class="set-help">AI 인사이트·자연어 검색·발주 브리핑·권역 분석에 사용됩니다. 키가 없어도 기본 수요 예측은 모두 작동합니다. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">키 발급받기 ↗</a></p>
+        <p class="set-help" style="color:var(--ink3)">⚠ 키는 이 브라우저에만 임시 저장되며 서버로 전송되지 않습니다. 공용 PC에서는 사용 후 비워두세요.</p>
+      </div>
+      <div class="set-field">
+        <label>저장된 키 기억</label>
+        <label class="toggle-row"><input type="checkbox" id="rememberKey"> 이 브라우저에 키 저장 (다음에 자동 입력)</label>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn-primary" id="settingsSave">저장</button></div>
+  </div>
+</div>
+
+<!-- 산정 근거 모달 -->
+<div class="modal-bg" id="helpModal">
+  <div class="modal modal-wide">
+    <div class="modal-h"><h3><span class="material-symbols-outlined">verified</span>산정 근거 &amp; 방법</h3><button class="modal-x" id="helpClose"><span class="material-symbols-outlined">close</span></button></div>
+    <div class="modal-b">
       <div class="mgrid">
         <div><div class="row"><b>표준공기</b> · 국토부 「적정 공사기간 확보를 위한 가이드라인 2026」 부록 공동주택 가이드라인</div>
           <div class="src">준비 45일 · 가시설/터파기 47일 · 파일기초 14일(+지지력 11) · 지하골조 18일/타설 · 지상골조 셋팅 19일 + <code>일반층 8일/층</code> · 마감 110일 · 정리 30일</div></div>
@@ -382,12 +434,12 @@
           <div class="src">검증: 25층 아파트 535작업일 → 약 26개월 · 교차검증: 홍콩 7~9일/층, 페루 11~15일 — 국내 8일/층 정합</div></div>
         <div><div class="row"><b>데이터</b> · 건축HUB 건축인허가정보 (ArchPmsHubService)</div>
           <div class="src">getApBasisOulnInfo · <b>권역당 여러 법정동 조회</b>로 표본 확대 · 착공일=실제착공일 우선 · <b style="color:var(--secondary)">착공 전 허가 현장은 용도별 리드타임(공동주택 6개월·기타 3개월)으로 미래 착공 추정 → 선행예측</b> · 준공(사용승인) 현장은 제외</div></div>
-        <div><div class="row"><b>AI 개입</b> · Gemini <code>gemini-3.5-flash</code> (해석·생성 전용)</div>
+        <div><div class="row"><b>AI 개입</b> · Gemini <code>gemini-3.5-flash</code> (해석·생성 전용, 과부하 시 3.1-flash-lite→2.5-flash 자동 폴백)</div>
           <div class="src">① 인사이트 제언 ② 자연어 검색→필터 ③ 발주 브리핑 ④ 권역 패턴 설명 · <b style="color:var(--crane)">AI는 숫자를 만들지 않음</b> — 모든 수치는 표준공기 엔진이 계산, AI는 해석·표현만 → 할루시네이션 차단</div></div>
         <div><div class="row"><b>한계</b> · 건축법 범위 한정 · 시장 전체 수요</div>
-          <div class="src">항타·터파기 확률추정 · 자사 물량 아닌 시장 전체 → "남들도 같은 시기 수요" 관점 · 운영 배포 시 사내 프록시 권장</div></div>
+          <div class="src">항타·터파기 확률추정 · 자사 물량 아닌 시장 전체 → "남들도 같은 시기에 장비를 찾는다"는 관점에서 선점 시점을 도출</div></div>
       </div>
-    </section>
+    </div>
   </div>
 </div>
 
@@ -398,36 +450,63 @@
 const SERVICE_KEY='29e5fa112b6e01e57bb8fe3fee8d90d85da35368f7ee450b9a10287fbe3aea6f';
 
 /* ===== Gemini AI 모듈 (최신 GA: gemini-3.5-flash, 2026.06 기준) ===== */
-const GEMINI_MODEL='gemini-3.5-flash';
-const GEMINI_URL=`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// 최신 공식 안정 모델 체인 (2026.06 기준): 최신 GA → 경량 → 검증 안정
+// 503/과부하 시 순서대로 폴백
+const GEMINI_MODELS=['gemini-3.5-flash','gemini-3.1-flash-lite','gemini-2.5-flash'];
 function geminiKey(){return ($('geminiKey')&&$('geminiKey').value.trim())||'';}
 function hasGemini(){return geminiKey().length>10;}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
-async function callGemini(prompt,jsonMode){
+async function callGeminiOnce(model,prompt,jsonMode){
   const key=geminiKey();
-  if(!key)throw new Error('Gemini API 키를 입력하세요 (고급 옵션)');
   const body={contents:[{parts:[{text:prompt}]}]};
   if(jsonMode)body.generationConfig={responseMimeType:'application/json'};
-  const url=`${GEMINI_URL}?key=${encodeURIComponent(key)}`;
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   let res;
   try{
     res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   }catch(e){
-    // CORS 차단 시 프록시 폴백
-    const proxy=$('proxyUrl')?$('proxyUrl').value.trim():'';
-    const wrapped=proxy?proxy.replace(/\/$/,'')+'/'+url:`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+    // CORS 차단 시 공개 프록시 폴백
+    const wrapped=`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
     res=await fetch(wrapped,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   }
   if(!res.ok){
-    const t=await res.text();
-    if(res.status===400&&/API_KEY/i.test(t))throw new Error('Gemini 키 오류');
-    if(res.status===429)throw new Error('Gemini 호출 한도 초과');
-    throw new Error(`Gemini 오류 (${res.status})`);
+    const t=await res.text().catch(()=>'');
+    const err=new Error(`HTTP ${res.status}`);err.status=res.status;err.body=t;throw err;
   }
   const data=await res.json();
   const text=data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join('')||'';
   if(!text)throw new Error('Gemini 응답 없음');
   return text;
+}
+
+async function callGemini(prompt,jsonMode){
+  if(!geminiKey())throw new Error('Gemini API 키를 입력하세요 (우측 상단 ⚙ 설정)');
+  let lastErr;
+  for(const model of GEMINI_MODELS){
+    // 모델별로 503/429는 지수 백오프 재시도 (0.8s → 1.6s → 3.2s)
+    for(let attempt=0;attempt<3;attempt++){
+      try{
+        return await callGeminiOnce(model,prompt,jsonMode);
+      }catch(e){
+        lastErr=e;
+        // 키 오류는 즉시 중단
+        if(e.status===400&&/API_KEY/i.test(e.body||''))throw new Error('Gemini 키 오류 — 키를 확인하세요');
+        if(e.status===403)throw new Error('Gemini 키 권한 오류');
+        // 503(과부하)/429(한도)/500 → 재시도
+        if(e.status===503||e.status===429||e.status===500){
+          if(attempt<2){await sleep(800*Math.pow(2,attempt));continue;}
+          break; // 이 모델은 포기, 다음 모델로
+        }
+        // 그 외 오류는 다음 모델 시도
+        break;
+      }
+    }
+  }
+  // 모든 모델·재시도 실패
+  if(lastErr&&lastErr.status===503)throw new Error('Gemini 서버 일시 과부하(503) — 잠시 후 다시 시도하세요');
+  if(lastErr&&lastErr.status===429)throw new Error('Gemini 호출 한도 초과 — 잠시 후 재시도');
+  throw new Error(`Gemini 오류 (${lastErr?lastErr.status||lastErr.message:'알 수 없음'})`);
 }
 
 /* 수치 요약 헬퍼: AI에 넘길 컴팩트 통계 (숫자는 코드가 만든다) */
@@ -586,15 +665,8 @@ const PROXY_CHAIN=[
   {name:'thingproxy', wrap:u=>`https://thingproxy.freeboard.io/fetch/${u}`}
 ];
 let DIAG=[]; // 진단 로그
-async function fetchViaProxy(url,customProxy){
+async function fetchViaProxy(url){
   DIAG=[];
-  // 사내 프록시 지정 시 그것만
-  if(customProxy){
-    const wrapped=customProxy.replace(/\/$/,'')+'/'+url;
-    const res=await fetch(wrapped);
-    if(!res.ok)throw new Error(`사내 프록시 HTTP ${res.status}`);
-    return await res.text();
-  }
   let lastErr;
   for(const p of PROXY_CHAIN){
     try{
@@ -611,11 +683,11 @@ async function fetchViaProxy(url,customProxy){
 }
 let SCAN_DIAG={raw:0,parsed:0,filtered:0,sampleKeys:'',firstStart:''}; // 단계별 진단
 const PERMIT_CACHE={}; // (sgg_bdong) → items
-async function fetchPermits(sigunguCd,bjdongCd,customProxy){
+async function fetchPermits(sigunguCd,bjdongCd){
   const ck=sigunguCd+'_'+bjdongCd;
   if(PERMIT_CACHE[ck])return PERMIT_CACHE[ck];
   const p=new URLSearchParams({serviceKey:SERVICE_KEY,sigunguCd,bjdongCd,numOfRows:'100',pageNo:'1',_type:'json'});
-  const text=await fetchViaProxy(`${API_BASE}/getApBasisOulnInfo?${p}`,customProxy);
+  const text=await fetchViaProxy(`${API_BASE}/getApBasisOulnInfo?${p}`);
   // 인증/한도 에러 먼저
   if(/SERVICE[_ ]?KEY|등록되지|SERVICE ERROR|인증/i.test(text)&&!/resultCode/i.test(text))throw new Error('인증키 오류(미승인)');
   if(/LIMITED_NUMBER|한도|초과/i.test(text))throw new Error('호출 한도 초과');
@@ -718,9 +790,36 @@ function toggleRegion(code){
 }
 function updateSelUI(){$('mapHint').textContent=selected.size?`${selected.size}개 권역 선택됨`:'권역을 클릭해 선택하세요';}
 $('selAll').onclick=()=>{if(selected.size===REGIONS.length)selected.clear();else REGIONS.forEach(r=>selected.add(r.name));Object.entries(markers).forEach(([c,m])=>m.getElement().classList.toggle('sel',selected.has(c)));updateSelUI();if(lastResult)renderScope();};
-$('advToggle').onclick=()=>{const f=$('proxyField'),f2=$('proxyField2');const show=f.style.display==='flex';f.style.display=show?'none':'flex';f2.style.display=show?'none':'flex';};
+/* 모달 열기/닫기 */
+function openModal(id){$(id).classList.add('show');}
+function closeModal(id){$(id).classList.remove('show');}
+$('settingsBtn').onclick=()=>openModal('settingsModal');
+$('settingsClose').onclick=()=>closeModal('settingsModal');
+$('helpBtn').onclick=()=>openModal('helpModal');
+$('helpClose').onclick=()=>closeModal('helpModal');
+// 배경 클릭·ESC로 닫기
+document.querySelectorAll('.modal-bg').forEach(bg=>bg.onclick=e=>{if(e.target===bg)bg.classList.remove('show');});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.modal-bg.show').forEach(m=>m.classList.remove('show'));});
 
-(function(){const d=new Date();d.setMonth(d.getMonth()-6);$('baseMonth').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;})();
+/* Gemini 키 저장 (localStorage, 사용자 선택 시) */
+const KEY_STORE='equipradar_gemini_key';
+(function loadKey(){
+  try{const saved=localStorage.getItem(KEY_STORE);if(saved){$('geminiKey').value=saved;$('rememberKey').checked=true;}}catch(e){}
+})();
+$('settingsSave').onclick=()=>{
+  try{
+    if($('rememberKey').checked)localStorage.setItem(KEY_STORE,geminiKey());
+    else localStorage.removeItem(KEY_STORE);
+  }catch(e){}
+  // 키 있으면 AI 바 노출 (스캔 후라면)
+  if(hasGemini()&&lastResult)$('aibar').style.display='flex';
+  closeModal('settingsModal');
+  setStatus(hasGemini()?'on':'', hasGemini()?'AI 기능 활성':'대기');
+  if(lastResult)setStatus('on',`${lastResult.all.sites.length}건 분석완료`);
+};
+
+/* 기준월 디폴트 = 현재월 (실행 시점) */
+(function(){const d=new Date();$('baseMonth').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;})();
 if(document.readyState==='complete')initMap();else window.addEventListener('load',initMap);
 
 function setStatus(s,t){$('status').className='status'+(s?' '+s:'');$('statusTxt').textContent=t;}
@@ -728,11 +827,11 @@ function showErr(m,warn){const b=$('errBox');b.className='notice '+(warn?'warn':
 function clearErr(){$('errBox').classList.remove('show');}
 
 $('runBtn').onclick=async()=>{
-  clearErr();const baseMonth=$('baseMonth').value;const proxy=$('proxyUrl').value.trim();
+  clearErr();const baseMonth=$('baseMonth').value;
   if(selected.size===0){showErr('지도에서 권역을 1개 이상 선택하세요');return;}
   const taskCount=allAreaTasks([...selected]).length;
-  if(taskCount>25&&!proxy){
-    if(!confirm(`선택한 권역의 법정동 ${taskCount}곳을 조회합니다. 공개 프록시로는 다소 느릴 수 있습니다(약 ${Math.ceil(taskCount*0.4)}초). 계속할까요?\n\n팁: 권역 수를 줄이면 더 빠릅니다.`))return;
+  if(taskCount>25){
+    if(!confirm(`선택한 권역의 법정동 ${taskCount}곳을 조회합니다. 다소 시간이 걸릴 수 있습니다(약 ${Math.ceil(taskCount*0.4)}초). 계속할까요?\n\n팁: 권역 수를 줄이면 더 빠릅니다.`))return;
   }
   $('runBtn').disabled=true;$('progress').classList.add('show');setStatus('busy','스캔 중');
   const regionNames=[...selected];const byRegion={};let failed=[];let totalRaw=0,totalParsed=0;const cutoff=new Date(new Date(baseMonth+'-01').getTime()-180*86400000);
@@ -746,7 +845,7 @@ $('runBtn').onclick=async()=>{
     $('progTxt').textContent=`[${done}/${tasks.length}] ${t.region} · ${t.sgg}-${t.bdong} 조회…`;
     $('progPct').textContent=`${pct}%`;$('pfill').style.width=`${pct}%`;
     try{
-      const items=await fetchPermits(t.sgg,t.bdong,proxy);
+      const items=await fetchPermits(t.sgg,t.bdong);
       const parsed=items.map(parseSite).filter(Boolean);
       const sites=parsed.filter(s=>s.startDate>=cutoff);
       const R=byRegion[t.region];
@@ -797,7 +896,7 @@ let aiFilter=null; // 자연어 질의로 생성된 필터
 // ② 자연어 검색
 $('aiGoBtn').onclick=async()=>{
   const q=$('aiQuery').value.trim();if(!q)return;
-  if(!hasGemini()){showErr('Gemini 키를 입력하세요 (고급 옵션)');return;}
+  if(!hasGemini()){showErr('Gemini 키를 입력하세요 (우측 상단 ⚙ 설정)');return;}
   $('aiGoBtn').disabled=true;$('aiGoBtn').textContent='해석 중…';
   try{
     aiFilter=await aiParseQuery(q);
@@ -811,14 +910,14 @@ $('aiResetBtn').onclick=()=>{aiFilter=null;$('aiQuery').value='';$('aiResetBtn')
 
 // ③ 발주 브리핑
 $('briefBtn').onclick=async()=>{
-  if(!hasGemini()){showErr('Gemini 키를 입력하세요 (고급 옵션)');return;}
+  if(!hasGemini()){showErr('Gemini 키를 입력하세요 (우측 상단 ⚙ 설정)');return;}
   if(!lastResult){showErr('먼저 수요 스캔을 실행하세요');return;}
   const box=$('aiBrief');box.style.display='block';
   box.innerHTML='<h5><span class="material-symbols-outlined">auto_awesome</span>AI 발주 브리핑</h5><div class="loading">Gemini가 권역 데이터를 분석 중…</div>';
   $('briefBtn').disabled=true;
   try{
     const txt=await aiBriefing();
-    box.innerHTML='<h5><span class="material-symbols-outlined">auto_awesome</span>AI 발주 브리핑 <span class="ai-badge"><span class="material-symbols-outlined">smart_toy</span>'+GEMINI_MODEL+'</span></h5>'+mdToHtml(txt);
+    box.innerHTML='<h5><span class="material-symbols-outlined">auto_awesome</span>AI 발주 브리핑 <span class="ai-badge"><span class="material-symbols-outlined">smart_toy</span>'+GEMINI_MODELS[0]+'</span></h5>'+mdToHtml(txt);
   }catch(e){box.innerHTML='<h5><span class="material-symbols-outlined">error</span>브리핑 실패</h5>'+e.message;}
   $('briefBtn').disabled=false;
 };
@@ -880,7 +979,7 @@ function renderScope(forceKey){
     aiEnhanceInsight(insights,scopeName).then(txt=>{
       if(!txt)return;
       const card=document.createElement('div');card.className='inscard signal';
-      card.innerHTML=`<div class="ins-row"><div class="ins-ic"><span class="material-symbols-outlined">auto_awesome</span></div><div><div class="ins-when">AI 종합 제언 <span class="ai-badge"><span class="material-symbols-outlined">smart_toy</span>${GEMINI_MODEL}</span></div><div class="ins-msg">${mdToHtml(txt)}</div></div></div>`;
+      card.innerHTML=`<div class="ins-row"><div class="ins-ic"><span class="material-symbols-outlined">auto_awesome</span></div><div><div class="ins-when">AI 종합 제언 <span class="ai-badge"><span class="material-symbols-outlined">smart_toy</span>${GEMINI_MODELS[0]}</span></div><div class="ins-msg">${mdToHtml(txt)}</div></div></div>`;
       ig.insertBefore(card,ig.firstChild);
     }).catch(()=>{});
   }
