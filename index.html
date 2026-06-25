@@ -154,6 +154,22 @@
   .insrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
   .insrow .inscard{margin:0}
   .insrow .ins-fullspan{grid-column:1/-1}
+  /* 메가 프로젝트 경고 배너 */
+  .mega-banner{margin-bottom:14px;display:flex;flex-direction:column;gap:10px}
+  .mega-card{background:linear-gradient(135deg,#fff4ec,#fdeee0);border:1px solid #f0c89a;border-left:4px solid var(--crane);border-radius:11px;padding:14px 16px}
+  .mega-card .mh{display:flex;align-items:center;gap:9px;margin-bottom:7px;flex-wrap:wrap}
+  .mega-card .mh .material-symbols-outlined{color:var(--crane);font-size:20px}
+  .mega-card .mtitle{font-size:14px;font-weight:800;color:var(--primary)}
+  .mega-card .msev{font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;background:var(--error);color:#fff}
+  .mega-card .msev.high{background:var(--amber);color:#fff}
+  .mega-card .mloc{font-size:11px;color:var(--ink3);font-weight:600}
+  .mega-card .mnote{font-size:12.5px;color:var(--ink2);line-height:1.55}
+  .mega-card .mperiod{font-size:11px;color:var(--crane);font-weight:700;margin-top:6px}
+  .mega-card .msev.mid{background:var(--ink3);color:#fff}
+  .mega-loading{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink3);padding:14px 16px;background:var(--c-low);border-radius:11px}
+  .mega-loading .material-symbols-outlined{color:var(--crane);font-size:19px;animation:pulse-mega 1.4s infinite}
+  @keyframes pulse-mega{50%{opacity:.4}}
+  .mega-src{font-size:10.5px;color:var(--ink3);text-align:right;margin-top:2px;font-style:italic}
   .col12{grid-column:span 12}
   .inscard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px;position:relative;overflow:hidden;transition:.15s}
   .inscard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
@@ -204,6 +220,13 @@
   .method .src{font-size:11px;color:var(--ink3);line-height:1.55}
 
   .placeholder{padding:40px;text-align:center;color:var(--ink3);font-size:13px;line-height:1.7}
+
+  /* 권역 선택 칩 */
+  .region-chips{display:flex;flex-wrap:wrap;gap:7px;margin:-8px 0 24px}
+  .rchip{font-size:12px;font-weight:600;padding:7px 13px;border:1.5px solid var(--line2);border-radius:100px;background:var(--card);color:var(--ink2);cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:5px;user-select:none}
+  .rchip:hover{border-color:var(--crane);color:var(--primary)}
+  .rchip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .rchip.on::before{content:'✓';font-size:11px}
 
   /* topbar icon buttons */
   .iconbtn{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink2);cursor:pointer;display:grid;place-items:center;transition:.15s}
@@ -324,10 +347,13 @@
       </div>
       <div class="cfield">
         <label>권역 선택</label>
-        <button class="hintbtn" id="selAll">지도에서 클릭 · 전체선택/해제</button>
+        <button class="hintbtn" id="selAll">지도 클릭 · 칩 클릭 · 전체선택/해제</button>
       </div>
       <button class="runbtn" id="runBtn"><span class="material-symbols-outlined">radar</span>수요 스캔</button>
     </div>
+
+    <!-- 권역 칩 목록 (지도 없이도 선택 가능) -->
+    <div class="region-chips" id="regionChips"></div>
 
     <!-- AI 자연어 질의 -->
     <div class="aibar" id="aibar" style="display:none">
@@ -369,6 +395,7 @@
         <span class="material-symbols-outlined">lightbulb</span>실행 인사이트
         <button class="ai-mini" id="briefBtn" style="margin-left:auto" title="Gemini 발주 브리핑 생성"><span class="material-symbols-outlined">auto_awesome</span>AI 브리핑</button>
       </div>
+      <div class="mega-banner" id="megaBanner" style="display:none"></div>
       <div class="ai-brief" id="aiBrief" style="display:none"></div>
       <div class="insrow" id="insGrid">
         <div class="inscard signal"><div class="ins-row"><div class="ins-ic"><span class="material-symbols-outlined">info</span></div><div><div class="ins-when">스캔을 실행하세요</div><div class="ins-msg">권역을 선택하고 수요 스캔을 누르면 발주 시점 인사이트가 여기 표시됩니다.</div></div></div></div>
@@ -472,10 +499,11 @@ function geminiKey(){return ($('geminiKey')&&$('geminiKey').value.trim())||'';}
 function hasGemini(){return geminiKey().length>10;}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
-async function callGeminiOnce(model,prompt,jsonMode){
+async function callGeminiOnce(model,prompt,jsonMode,useSearch){
   const key=geminiKey();
   const body={contents:[{parts:[{text:prompt}]}]};
   if(jsonMode)body.generationConfig={responseMimeType:'application/json'};
+  if(useSearch)body.tools=[{google_search:{}}]; // 실시간 웹 검색 도구
   const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   let res;
   try{
@@ -495,14 +523,14 @@ async function callGeminiOnce(model,prompt,jsonMode){
   return text;
 }
 
-async function callGemini(prompt,jsonMode){
+async function callGemini(prompt,jsonMode,useSearch){
   if(!geminiKey())throw new Error('Gemini API 키를 입력하세요 (우측 상단 ⚙ 설정)');
   let lastErr;
   for(const model of GEMINI_MODELS){
     // 모델별로 503/429는 지수 백오프 재시도 (0.8s → 1.6s → 3.2s)
     for(let attempt=0;attempt<3;attempt++){
       try{
-        return await callGeminiOnce(model,prompt,jsonMode);
+        return await callGeminiOnce(model,prompt,jsonMode,useSearch);
       }catch(e){
         lastErr=e;
         // 키 오류는 즉시 중단
@@ -536,7 +564,13 @@ function summarizeBuckets(buckets,scopeName){
 async function aiEnhanceInsight(insights,scopeName){
   if(!hasGemini())return null;
   const base=insights.map(i=>`- ${i.when}: ${i.msg.replace(/<[^>]+>/g,'')}`).join('\n');
-  const prompt=`너는 대형 건설사 구매팀의 시니어 분석가다. 아래는 코드가 계산한 ${scopeName} 권역의 건설장비 수요 인사이트다. 이 수치를 바탕으로, 구매 담당자에게 보내는 2~3문장의 실전 제언을 한국어로 써라. 새로운 숫자를 지어내지 말고 주어진 수치만 사용해라. 임대단가·리드타임·선점 관점에서 실용적으로. 마크다운 없이 평문으로.\n\n${base}`;
+  const prompt=`너는 건설사 구매담당자를 돕는 장비 수요 분석가다. 아래는 코드가 계산한 ${scopeName}의 건설장비 수요 인사이트다.
+이 수치를 바탕으로, 구매담당자가 발주 계획에 참고할 종합 제언을 2~3문장으로 써라.
+- 보고체("~하겠습니다") 금지. 정보를 알려주는 톤.
+- "언제 수요가 몰리니, 사내 발주·계약 절차 리드타임을 감안해 몇 개월 전부터 준비/검토하면 좋다"는 식의 실용 정보 위주.
+- 새 숫자 지어내지 말고 주어진 수치만 사용. 마크다운 없이 평문.
+
+${base}`;
   return await callGemini(prompt,false);
 }
 
@@ -556,12 +590,27 @@ async function aiParseQuery(query){
   try{return JSON.parse(txt);}catch(e){const m=txt.match(/\{[\s\S]*\}/);if(m)return JSON.parse(m[0]);throw new Error('질의 해석 실패');}
 }
 
-/* ③ 발주 브리핑 — 전체 스캔을 임원 보고용으로 */
+/* ③ 발주 브리핑 — 구매담당자가 실무에 바로 쓰는 인사이트 */
 async function aiBriefing(){
   if(!lastResult)throw new Error('먼저 스캔을 실행하세요');
   const lines=Object.values(lastResult.byRegion).filter(r=>r.sites.length)
     .map(r=>summarizeBuckets(r.buckets,r.name)).join('\n');
-  const prompt=`너는 대형 건설사 구매본부장에게 보고하는 분석가다. 아래는 권역별 건설장비 수요 예측 데이터(코드가 계산함)다. 이를 종합해 이번 분기 구매 우선순위 3가지를 임원 보고용으로 작성해라. 각 항목은 "무엇을, 언제, 왜"가 드러나게. 새 숫자 생성 금지, 주어진 수치만 인용. 한국어, 각 항목 1~2문장, 간결하게.\n\n${lines}`;
+  // 선택 권역의 메가 프로젝트 맥락 (renderMega가 채운 실시간 검색 캐시 사용)
+  const megas=[...selected].flatMap(rn=>(MEGA_CACHE[rn]&&MEGA_CACHE[rn].items?MEGA_CACHE[rn].items.map(m=>({...m,region:rn})):[]));
+  const megaCtx=megas.length?`\n\n[중요·대형 산업단지 맥락 — 일반 인허가 데이터엔 규모가 안 잡히지만 반드시 고려할 것 · 실시간 웹 검색 결과]\n`+megas.map(m=>`- ${m.name}(${m.loc||m.region}): ${m.status||''} ${m.period||''}. ${m.note||''}`).join('\n'):'';
+  const prompt=`너는 건설사 구매담당자를 돕는 장비 수요 분석가다. 아래는 권역별 건설장비 수요 예측 데이터(코드가 계산함)다.
+이걸 보고, 구매담당자가 발주 계획을 세울 때 참고할 핵심 인사이트 3가지를 정리해라.
+
+작성 원칙:
+- 보고체("~하겠습니다", "~추진하겠습니다") 절대 금지. 담당자에게 정보를 알려주는 톤으로.
+- 각 항목은 "언제 어떤 장비 수요가 몰리는지" + "그러니 사내 발주·계약 절차 리드타임을 고려해 몇 개월 전부터 준비/검토하면 좋을지"를 알려줘라.
+- 예: "26년 12월에 타워크레인 수요가 정점(8건)에 이를 전망. 임대 계약 리드타임 2~3개월을 감안하면 늦어도 26년 9~10월부터 발주를 준비하는 것이 안전."
+- 명령("~하라")이나 보고("~하겠습니다")가 아니라, 판단 근거가 되는 정보 제공.
+- 새 숫자 생성 금지, 주어진 수치만 인용. 한국어, 각 항목 1~2문장, 간결하게.
+${megaCtx?'- 아래 대형 산업단지 맥락이 있으면, 그 현장이 해당 권역·시기의 장비를 대거 흡수해 일반 현장 수급까지 빡빡해질 수 있다는 점을 반드시 인사이트에 포함해라. 이건 일반 데이터에 안 잡히니 담당자가 놓치기 쉬운 핵심이다.':''}
+
+데이터:
+${lines}${megaCtx}`;
   return await callGemini(prompt,false);
 }
 
@@ -727,6 +776,36 @@ const REGIONS=[
     {sgg:'29155',bdongs:['10100']}                                   // 북구
   ]}
 ];
+
+/* 대형 산업단지·메가 프로젝트 — 수동 DB 대신 Gemini 실시간 웹 검색으로 조회.
+   준공된 현장은 검색에서 자연히 빠지고, 새 프로젝트는 자동 포착됨.
+   권역별 검색 결과를 세션 동안 캐시 (중복 검색·비용 방지) */
+const MEGA_CACHE={}; // regionName → {items:[...], ts}
+async function fetchMegaProjects(regionName){
+  if(MEGA_CACHE[regionName])return MEGA_CACHE[regionName];
+  if(!hasGemini())return null; // 키 없으면 검색 불가
+  const prompt=`대한민국 ${regionName} 지역에서 현재 진행 중이거나 향후 착공 예정인 초대형 건설 프로젝트(반도체 팹, 대규모 산업단지, 신도시, 대형 복합개발 등)를 웹에서 검색해 알려줘.
+
+조건:
+- 이미 준공·완공된 것은 제외. 현재 공사 중이거나 향후 착공 예정인 것만.
+- 건설 장비(타워크레인·굴착기 등) 수요가 클 만한 대형 현장 위주.
+- 최대 4개. 없으면 빈 배열.
+
+각 항목을 아래 JSON 배열로만 출력 (설명·마크다운 없이):
+[{"name":"프로젝트명","loc":"위치(시군구)","status":"진행단계(예: 골조공사중, 2026착공예정)","period":"기간(예: 2024착공~2027준공)","severity":"극심|높음|보통","note":"장비수요 관점 한 줄 설명"}]`;
+  try{
+    const txt=await callGemini(prompt,false,true); // 검색 도구 ON
+    let items=[];
+    const m=txt.match(/\[[\s\S]*\]/);
+    if(m)items=JSON.parse(m[0]);
+    if(!Array.isArray(items))items=[];
+    const result={items,ts:Date.now()};
+    MEGA_CACHE[regionName]=result;
+    return result;
+  }catch(e){
+    return {items:[],error:e.message};
+  }
+}
 /* 전체 (sgg,bdong) 평탄화 — 캐시·진행률용 */
 function allAreaTasks(regionNames){
   const tasks=[];
@@ -851,6 +930,18 @@ function initMap(){
         map.addLayer({id:'sat-labels-layer',type:'raster',source:'sat-labels',layout:{visibility:'none'}});
       }
       renderMarkers();
+      // 지도 빈 영역 클릭 → 가장 가까운 권역 토글
+      map.on('click',(e)=>{
+        const {lng,lat}=e.lngLat;
+        let nearest=null,minD=Infinity;
+        REGIONS.forEach(r=>{
+          const d=(r.lat-lat)**2+(r.lng-lng)**2;
+          if(d<minD){minD=d;nearest=r;}
+        });
+        // 너무 멀면(엉뚱한 바다 등) 무시. 도 단위라 넉넉하게
+        if(nearest&&minD<1.0)toggleRegion(nearest.name);
+      });
+      map.getCanvas().style.cursor='pointer';
     });
     map.on('error',()=>{});
   }catch(e){mapLoadFailed();}
@@ -894,11 +985,30 @@ function renderMarkers(){
 }
 function toggleRegion(code){
   if(selected.has(code))selected.delete(code);else selected.add(code);
-  Object.entries(markers).forEach(([c,m])=>m.getElement().classList.toggle('sel',selected.has(c)));
-  updateSelUI();if(lastResult)renderScope();
+  syncSelectionUI();
+  if(lastResult)renderScope();
+}
+/* 마커·칩·라벨 선택 상태를 한 번에 동기화 */
+function syncSelectionUI(){
+  Object.entries(markers).forEach(([c,m])=>{try{m.getElement().classList.toggle('sel',selected.has(c));}catch(e){}});
+  document.querySelectorAll('.rchip').forEach(ch=>ch.classList.toggle('on',selected.has(ch.dataset.region)));
+  updateSelUI();
+}
+/* 권역 칩 렌더 */
+function renderRegionChips(){
+  const wrap=$('regionChips');if(!wrap)return;
+  wrap.innerHTML='';
+  REGIONS.forEach(r=>{
+    const ch=document.createElement('div');
+    ch.className='rchip'+(selected.has(r.name)?' on':'');
+    ch.dataset.region=r.name;
+    ch.textContent=r.name;
+    ch.onclick=()=>toggleRegion(r.name);
+    wrap.appendChild(ch);
+  });
 }
 function updateSelUI(){$('mapHint').textContent=selected.size?`${selected.size}개 권역 선택됨`:'권역을 클릭해 선택하세요';}
-$('selAll').onclick=()=>{if(selected.size===REGIONS.length)selected.clear();else REGIONS.forEach(r=>selected.add(r.name));Object.entries(markers).forEach(([c,m])=>m.getElement().classList.toggle('sel',selected.has(c)));updateSelUI();if(lastResult)renderScope();};
+$('selAll').onclick=()=>{if(selected.size===REGIONS.length)selected.clear();else REGIONS.forEach(r=>selected.add(r.name));syncSelectionUI();if(lastResult)renderScope();};
 /* 모달 열기/닫기 */
 function openModal(id){$(id).classList.add('show');}
 function closeModal(id){$(id).classList.remove('show');}
@@ -929,6 +1039,7 @@ $('settingsSave').onclick=()=>{
 
 /* 기준월 디폴트 = 현재월 (실행 시점) */
 (function(){const d=new Date();$('baseMonth').value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;})();
+renderRegionChips(); // 권역 칩 초기 렌더
 if(document.readyState==='complete')initMap();else window.addEventListener('load',initMap);
 
 function setStatus(s,t){$('status').className='status'+(s?' '+s:'');$('statusTxt').textContent=t;}
@@ -994,9 +1105,13 @@ $('runBtn').onclick=async()=>{
   lastResult={byRegion,baseMonth,all:{sites:allSites,buckets:aggregate(allSites,baseMonth,18)}};
   aiFilter=null; // 새 스캔 시 AI 필터 초기화
   renderMarkers();renderScopeTabs();renderScope();
-  if(hasGemini()){$('aibar').style.display='flex';} // AI 키 있으면 자연어 검색 노출
   $('progress').classList.remove('show');$('runBtn').disabled=false;setStatus('on',`${allSites.length}건 분석완료`);
   if(failed.length)showErr('일부 권역 조회 실패: '+failed.join(' / '),true);
+  // AI 키 있으면 자연어 검색 노출 + 발주 브리핑 자동 생성
+  if(hasGemini()){
+    $('aibar').style.display='flex';
+    runBriefing(); // 스캔 완료 즉시 인사이트 자동 제공
+  }
 };
 
 /* ===== AI 기능 이벤트 ===== */
@@ -1018,7 +1133,7 @@ $('aiGoBtn').onclick=async()=>{
 $('aiResetBtn').onclick=()=>{aiFilter=null;$('aiQuery').value='';$('aiResetBtn').style.display='none';renderScope();};
 
 // ③ 발주 브리핑
-$('briefBtn').onclick=async()=>{
+async function runBriefing(){
   if(!hasGemini()){showErr('Gemini 키를 입력하세요 (우측 상단 ⚙ 설정)');return;}
   if(!lastResult){showErr('먼저 수요 스캔을 실행하세요');return;}
   const box=$('aiBrief');box.style.display='block';
@@ -1029,7 +1144,8 @@ $('briefBtn').onclick=async()=>{
     box.innerHTML='<h5><span class="material-symbols-outlined">auto_awesome</span>AI 발주 브리핑 <span class="ai-badge"><span class="material-symbols-outlined">smart_toy</span>'+GEMINI_MODELS[0]+'</span></h5>'+mdToHtml(txt);
   }catch(e){box.innerHTML='<h5><span class="material-symbols-outlined">error</span>브리핑 실패</h5>'+e.message;}
   $('briefBtn').disabled=false;
-};
+}
+$('briefBtn').onclick=runBriefing;
 
 // 간단 마크다운 → HTML (브리핑/제언 표시용)
 function mdToHtml(t){
@@ -1093,6 +1209,7 @@ function renderScope(forceKey){
     }).catch(()=>{});
   }
 
+  renderMega();
   renderMiles(sites);
 }
 
@@ -1127,6 +1244,37 @@ async function aiExplainHandler(code){
   catch(e){box.innerHTML='분석 실패: '+e.message;}
 }
 function fmtD(d){return `${String(d.getFullYear()).slice(2)}.${String(d.getMonth()+1).padStart(2,'0')}`;}
+async function renderMega(){
+  const banner=$('megaBanner');
+  const regions=[...selected];
+  if(!regions.length||!hasGemini()){banner.style.display='none';banner.innerHTML='';return;}
+  // 로딩 표시
+  banner.style.display='flex';
+  banner.innerHTML='<div class="mega-loading"><span class="material-symbols-outlined">travel_explore</span>대형 산업단지·메가 프로젝트 실시간 검색 중…</div>';
+  // 권역별 검색 (캐시됨)
+  const all=[];
+  for(const rn of regions){
+    const r=await fetchMegaProjects(rn);
+    if(r&&r.items)r.items.forEach(it=>all.push({...it,region:rn}));
+  }
+  if(!all.length){banner.style.display='none';banner.innerHTML='';return;}
+  banner.innerHTML=all.map(m=>{
+    const sev=m.severity||'보통';
+    const sevCls=sev==='높음'?' high':(sev==='보통'?' mid':'');
+    return `
+    <div class="mega-card">
+      <div class="mh">
+        <span class="material-symbols-outlined">warning</span>
+        <span class="mtitle">${esc(m.name||'대형 프로젝트')}</span>
+        <span class="msev${sevCls}">장비 블랙홀 · ${esc(sev)}</span>
+        ${m.loc?`<span class="mloc">📍 ${esc(m.loc)}</span>`:''}
+      </div>
+      ${m.note?`<div class="mnote">${esc(m.note)}</div>`:''}
+      <div class="mperiod">${m.status?'🏗 '+esc(m.status):''}${m.period?' · ⏱ '+esc(m.period):''}</div>
+    </div>`;
+  }).join('')+'<div class="mega-src">↑ Gemini 실시간 웹 검색 결과 · 준공된 현장은 제외됨</div>';
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function renderMiles(sites){
   $('mileMeta').textContent=`착공 임박 ${Math.min(12,sites.length)}건`;
   const sorted=[...sites].sort((a,b)=>a.startDate-b.startDate).slice(0,12);
