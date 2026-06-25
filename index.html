@@ -125,6 +125,9 @@
   /* map */
   #map{width:100%;height:444px;border-radius:0 0 12px 12px}
   .mapwrap{position:relative;flex:1;min-height:444px}
+  .maptoggle{position:absolute;top:12px;left:12px;z-index:5;display:flex;background:rgba(255,255,255,.92);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:9px;padding:3px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+  .maptoggle button{border:none;background:none;font-family:var(--sans);font-size:12px;font-weight:600;color:var(--ink3);padding:6px 13px;border-radius:6px;cursor:pointer;transition:.15s}
+  .maptoggle button.on{background:var(--primary);color:#fff}
   .maplibregl-popup-content{font-family:var(--sans);border-radius:9px;padding:9px 12px;box-shadow:0 6px 22px rgba(0,0,0,.13)}
   .heatleg{display:flex;align-items:center;justify-content:center;gap:18px;font-size:12px;color:var(--ink3);padding:14px}
   .heatleg .d{display:flex;align-items:center;gap:6px}
@@ -134,7 +137,7 @@
   .mk .ring{position:absolute;border-radius:50%;border:1.5px solid currentColor;opacity:.35}
   .mk .core{border-radius:50%;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.22);display:grid;place-items:center;font-weight:800;color:#fff;font-size:12px}
   .mk.sel .core{outline:3px solid var(--primary);outline-offset:2px}
-  .mk .lab{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:5px;font-size:10px;font-weight:700;color:var(--primary);background:rgba(255,255,255,.9);padding:1px 7px;border-radius:5px;white-space:nowrap;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .mk .lab{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:5px;font-size:10px;font-weight:700;color:var(--primary);background:rgba(255,255,255,.95);padding:1px 7px;border-radius:5px;white-space:nowrap;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.25)}
 
   /* chart */
   .chart-wrap{height:380px;position:relative}
@@ -146,6 +149,12 @@
   .ins-h{font-size:16px;font-weight:600;color:var(--primary);margin-bottom:14px;display:flex;align-items:center;gap:8px}
   .ins-h .material-symbols-outlined{color:var(--crane)}
   .inslist{display:flex;flex-direction:column;gap:12px}
+  /* 상단 인사이트 섹션 (가로 배치) */
+  .ins-section{margin-bottom:16px}
+  .insrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .insrow .inscard{margin:0}
+  .insrow .ins-fullspan{grid-column:1/-1}
+  .col12{grid-column:span 12}
   .inscard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px;position:relative;overflow:hidden;transition:.15s}
   .inscard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
   .inscard.alert::before{background:var(--error)} .inscard.alert:hover{border-color:var(--error)}
@@ -260,7 +269,7 @@
   @media(max-width:1100px){
     .sidebar{transform:translateX(-100%);transition:.2s} .sidebar.open{transform:none}
     .main{margin-left:0}
-    .grid12{grid-template-columns:1fr} .col5,.col7,.col4,.col8{grid-column:span 1}
+    .grid12{grid-template-columns:1fr} .col5,.col7,.col4,.col8,.col12{grid-column:span 1}
     .kpis{grid-template-columns:1fr 1fr} .mgrid{grid-template-columns:1fr}
   }
   @media(max-width:600px){.kpis{grid-template-columns:1fr} .canvas{padding:18px}}
@@ -354,11 +363,28 @@
       </div>
     </div>
 
-    <!-- map + chart -->
+    <!-- 1. 실행 인사이트 (상단 전체폭, 가로 배치) -->
+    <section class="ins-section">
+      <div class="ins-h">
+        <span class="material-symbols-outlined">lightbulb</span>실행 인사이트
+        <button class="ai-mini" id="briefBtn" style="margin-left:auto" title="Gemini 발주 브리핑 생성"><span class="material-symbols-outlined">auto_awesome</span>AI 브리핑</button>
+      </div>
+      <div class="ai-brief" id="aiBrief" style="display:none"></div>
+      <div class="insrow" id="insGrid">
+        <div class="inscard signal"><div class="ins-row"><div class="ins-ic"><span class="material-symbols-outlined">info</span></div><div><div class="ins-when">스캔을 실행하세요</div><div class="ins-msg">권역을 선택하고 수요 스캔을 누르면 발주 시점 인사이트가 여기 표시됩니다.</div></div></div></div>
+      </div>
+    </section>
+
+    <!-- 2. 지도 + 곡선 -->
     <div class="grid12">
       <section class="card col5" id="mapCard">
         <div class="card-h"><div><h3>권역 수요 지도</h3><div class="sub" id="mapHint">권역을 클릭해 선택하세요</div></div></div>
-        <div class="mapwrap"><div id="map"></div></div>
+        <div class="mapwrap"><div id="map"></div>
+          <div class="maptoggle">
+            <button data-mode="light" class="on" onclick="setMapMode('light')">지도</button>
+            <button data-mode="satellite" onclick="setMapMode('satellite')">위성</button>
+          </div>
+        </div>
         <div class="heatleg">
           <div class="d"><span class="sw" style="background:var(--crane)"></span>높음/부족</div>
           <div class="d"><span class="sw" style="background:var(--amber)"></span>보통</div>
@@ -377,20 +403,9 @@
       </section>
     </div>
 
-    <!-- insights + timeline -->
+    <!-- 3. 개별 현장 마일스톤 (전체폭) -->
     <div class="grid12">
-      <section class="col4">
-        <div class="ins-h">
-          <span class="material-symbols-outlined">lightbulb</span>실행 인사이트
-          <button class="ai-mini" id="briefBtn" style="margin-left:auto" title="Gemini 발주 브리핑 생성"><span class="material-symbols-outlined">auto_awesome</span>AI 브리핑</button>
-        </div>
-        <div class="ai-brief" id="aiBrief" style="display:none"></div>
-        <div class="inslist" id="insGrid">
-          <div class="inscard signal"><div class="ins-row"><div class="ins-ic"><span class="material-symbols-outlined">info</span></div><div><div class="ins-when">스캔을 실행하세요</div><div class="ins-msg">권역을 선택하고 수요 스캔을 누르면 발주 시점 인사이트가 여기 표시됩니다.</div></div></div></div>
-        </div>
-      </section>
-
-      <section class="card col8" id="mileCard">
+      <section class="card col12" id="mileCard">
         <div class="card-h"><div><h3>개별 현장 마일스톤</h3><div class="sub" id="mileMeta">현장별 공정 일정과 장비 투입 구간</div></div></div>
         <div class="tscroll">
           <table><thead><tr><th>대지위치</th><th>용도·구조</th><th>규모</th><th>착공</th><th>항타</th><th>골조진입</th><th>공정 타임라인</th></tr></thead>
@@ -608,44 +623,108 @@ const API_BASE='https://apis.data.go.kr/1613000/ArchPmsHubService';
    areas: [{sgg:시군구5자리, bdongs:[읍면동5자리,...]}]
    bdongs는 검증된 주요 동 + 패턴 생성 동을 섞어 표본 확대 */
 function genBdongs(prefixes){return prefixes;} // 가독성용
+/* 권역 = 행정구역(도/광역시). 각 권역에 건설 활발 시군구 + 핵심 법정동 다수.
+   ※ 공개 API 특성상 권역당 전수조사는 불가 → 대표 시군구·법정동 표본으로 수요 흐름 대표 */
 const REGIONS=[
-  {name:'서울 강남권',lat:37.505,lng:127.05,areas:[
-    {sgg:'11680',bdongs:['10300','10800','10600','11000','10100']}, // 강남: 역삼,대치,논현,삼성,신사
-    {sgg:'11650',bdongs:['10800','10100','10600','11000']},          // 서초: 서초,방배,잠원,반포
-    {sgg:'11710',bdongs:['10100','10300','11000','11400']}           // 송파: 잠실,석촌,문정,장지
+  {name:'서울',lat:37.55,lng:126.99,areas:[
+    {sgg:'11680',bdongs:['10300','10800','10600','11000','10100']}, // 강남
+    {sgg:'11650',bdongs:['10800','10100','10600','11000']},          // 서초
+    {sgg:'11710',bdongs:['10100','10300','11000','11400']},          // 송파
+    {sgg:'11440',bdongs:['10100','11600','12700']},                  // 마포
+    {sgg:'11215',bdongs:['10100','10200']},                          // 광진
+    {sgg:'11620',bdongs:['10100','10600']},                          // 관악
+    {sgg:'11530',bdongs:['10100','10800']}                           // 구로
   ]},
-  {name:'경기 분당·성남',lat:37.40,lng:127.12,areas:[
-    {sgg:'41135',bdongs:['11000','11100','11800','11900','10800']},  // 분당: 백현,판교,정자,서현,수내
-    {sgg:'41131',bdongs:['10100','10200','10600']},                  // 수정: 신흥,태평,복정
-    {sgg:'41133',bdongs:['10100','10500']}                           // 중원: 성남,상대원
+  {name:'경기',lat:37.41,lng:127.12,areas:[
+    {sgg:'41135',bdongs:['11000','11100','11800','11900','10800']},  // 성남 분당
+    {sgg:'41131',bdongs:['10100','10200','10600']},                  // 성남 수정
+    {sgg:'41117',bdongs:['10100','10300','10700','11000']},          // 수원 영통
+    {sgg:'41465',bdongs:['10100','10800','11100','12300']},          // 용인 기흥
+    {sgg:'41463',bdongs:['10100','11900']},                          // 용인 수지
+    {sgg:'41590',bdongs:['10100','10900','12500']},                  // 화성
+    {sgg:'41285',bdongs:['10100','10400']},                          // 고양 덕양
+    {sgg:'41281',bdongs:['10100','11000']},                          // 고양 일산동
+    {sgg:'41210',bdongs:['10100','10700']}                           // 광명
   ]},
-  {name:'경기 수원·용인',lat:37.28,lng:127.05,areas:[
-    {sgg:'41117',bdongs:['10100','10300','10700','11000']},          // 영통: 매탄,영통,원천,광교
-    {sgg:'41465',bdongs:['10100','10800','11100','12300']},          // 기흥: 신갈,구갈,보정,동백
-    {sgg:'41463',bdongs:['10100','11900']}                           // 수지: 풍덕천,죽전
+  {name:'인천',lat:37.46,lng:126.71,areas:[
+    {sgg:'28260',bdongs:['10500','10700','10800']},                  // 연수(송도)
+    {sgg:'28245',bdongs:['10100','11000','10900','11500']},          // 서구(청라)
+    {sgg:'28177',bdongs:['10100','10700']},                          // 미추홀
+    {sgg:'28200',bdongs:['10100','10500']},                          // 부평
+    {sgg:'28237',bdongs:['10100','10900']}                           // 남동
   ]},
-  {name:'인천 송도·서구',lat:37.48,lng:126.65,areas:[
-    {sgg:'28260',bdongs:['10500','10700','10800']},                  // 연수: 송도,연수,청학
-    {sgg:'28245',bdongs:['10100','11000','10900','11500']},          // 서구: 검암,청라,경서,가정
-    {sgg:'28177',bdongs:['10100','10700']}                           // 미추홀: 숭의,주안
+  {name:'충청북도',lat:36.64,lng:127.49,areas:[
+    {sgg:'43113',bdongs:['10100','11500','12000']},                  // 청주 흥덕
+    {sgg:'43111',bdongs:['10100','10600']},                          // 청주 상당
+    {sgg:'43114',bdongs:['10100','10500']},                          // 청주 청원
+    {sgg:'43130',bdongs:['10100','10500']}                           // 충주
   ]},
-  {name:'부산권',lat:35.18,lng:129.07,areas:[
-    {sgg:'26350',bdongs:['10100','10800','11000','10500']},          // 해운대: 우동,중동,좌동,재송
-    {sgg:'26440',bdongs:['10100','11200']},                          // 강서: 대저,명지
-    {sgg:'26290',bdongs:['10100','10600']}                           // 남구: 대연,용호
+  {name:'충청남도',lat:36.66,lng:126.97,areas:[
+    {sgg:'44200',bdongs:['10100','11500']},                          // 아산
+    {sgg:'44131',bdongs:['10100','10800']},                          // 천안 동남
+    {sgg:'44133',bdongs:['10100','11200','11900']},                  // 천안 서북
+    {sgg:'44150',bdongs:['10100','10600']},                          // 공주
+    {sgg:'44210',bdongs:['10100']}                                   // 서산
   ]},
-  {name:'대구권',lat:35.83,lng:128.62,areas:[
-    {sgg:'27260',bdongs:['10100','10600','11100','11500']},          // 수성: 범어,만촌,황금,시지
-    {sgg:'27290',bdongs:['10100','11700','12400']}                   // 달서: 성당,월성,상인
+  {name:'세종',lat:36.48,lng:127.29,areas:[
+    {sgg:'36110',bdongs:['10100','10300','11100','11500','12500','10800','11200']} // 세종 신도시 일원
   ]},
-  {name:'대전·세종',lat:36.42,lng:127.32,areas:[
-    {sgg:'30200',bdongs:['10100','10600','11200','11800']},          // 유성: 봉명,구암,관평,도룡
-    {sgg:'30170',bdongs:['10100','10900']},                          // 서구: 둔산,갈마
-    {sgg:'36110',bdongs:['10100','10300','11100','11500','12500']}   // 세종: 한솔,새롬,도담,아름,고운
+  {name:'대전',lat:36.35,lng:127.38,areas:[
+    {sgg:'30200',bdongs:['10100','10600','11200','11800']},          // 유성
+    {sgg:'30170',bdongs:['10100','10900']},                          // 서구
+    {sgg:'30140',bdongs:['10100','10500']},                          // 중구
+    {sgg:'30230',bdongs:['10100']}                                   // 대덕
   ]},
-  {name:'광주권',lat:35.16,lng:126.85,areas:[
-    {sgg:'29200',bdongs:['10100','11400','11900']},                  // 광산: 송정,수완,장덕
-    {sgg:'29140',bdongs:['10100','11300']}                           // 서구: 양동,화정
+  {name:'경상북도',lat:36.25,lng:128.66,areas:[
+    {sgg:'47111',bdongs:['10100','11500']},                          // 포항 북구
+    {sgg:'47113',bdongs:['10100','11100']},                          // 포항 남구
+    {sgg:'47190',bdongs:['10100','11900']},                          // 구미
+    {sgg:'47170',bdongs:['10100']},                                  // 경산
+    {sgg:'47230',bdongs:['10100']}                                   // 경주
+  ]},
+  {name:'대구',lat:35.83,lng:128.62,areas:[
+    {sgg:'27260',bdongs:['10100','10600','11100','11500']},          // 수성
+    {sgg:'27290',bdongs:['10100','11700','12400']},                  // 달서
+    {sgg:'27710',bdongs:['10100','10800']},                          // 달성
+    {sgg:'27230',bdongs:['10100']}                                   // 동구
+  ]},
+  {name:'경상남도',lat:35.23,lng:128.69,areas:[
+    {sgg:'48121',bdongs:['10100','11500']},                          // 창원 의창
+    {sgg:'48123',bdongs:['10100','11200']},                          // 창원 성산
+    {sgg:'48125',bdongs:['10100','10900']},                          // 창원 마산회원
+    {sgg:'48310',bdongs:['10100','11500']},                          // 김해
+    {sgg:'48330',bdongs:['10100']}                                   // 양산
+  ]},
+  {name:'부산',lat:35.18,lng:129.08,areas:[
+    {sgg:'26350',bdongs:['10100','10800','11000','10500']},          // 해운대
+    {sgg:'26440',bdongs:['10100','11200']},                          // 강서
+    {sgg:'26290',bdongs:['10100','10600']},                          // 남구
+    {sgg:'26410',bdongs:['10100','10800']},                          // 부산진
+    {sgg:'26500',bdongs:['10100']}                                   // 기장
+  ]},
+  {name:'울산',lat:35.54,lng:129.31,areas:[
+    {sgg:'31140',bdongs:['10100','10700']},                          // 남구
+    {sgg:'31170',bdongs:['10100','10500']},                          // 북구
+    {sgg:'31200',bdongs:['10100']},                                  // 울주
+    {sgg:'31110',bdongs:['10100']}                                   // 중구
+  ]},
+  {name:'전라북도',lat:35.82,lng:127.11,areas:[
+    {sgg:'45111',bdongs:['10100','10800']},                          // 전주 완산
+    {sgg:'45113',bdongs:['10100','11200']},                          // 전주 덕진
+    {sgg:'45140',bdongs:['10100','10600']},                          // 익산
+    {sgg:'45130',bdongs:['10100']}                                   // 군산
+  ]},
+  {name:'전라남도',lat:34.82,lng:126.46,areas:[
+    {sgg:'46110',bdongs:['10100','10700']},                          // 목포
+    {sgg:'46130',bdongs:['10100','11100']},                          // 여수
+    {sgg:'46150',bdongs:['10100','10800']},                          // 순천
+    {sgg:'46230',bdongs:['10100']}                                   // 무안(남악)
+  ]},
+  {name:'광주',lat:35.16,lng:126.85,areas:[
+    {sgg:'29200',bdongs:['10100','11400','11900']},                  // 광산
+    {sgg:'29140',bdongs:['10100','11300']},                          // 서구
+    {sgg:'29170',bdongs:['10100','10600']},                          // 남구
+    {sgg:'29155',bdongs:['10100']}                                   // 북구
   ]}
 ];
 /* 전체 (sgg,bdong) 평탄화 — 캐시·진행률용 */
@@ -759,12 +838,42 @@ function initMap(){
     else{mapLoadFailed();return;}
   }
   try{
-    map=new maplibregl.Map({container:'map',style:'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',center:[127.6,36.3],zoom:6.0,attributionControl:{compact:true}});
+    map=new maplibregl.Map({container:'map',style:'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',center:[127.7,36.2],zoom:5.8,attributionControl:{compact:true}});
     map.addControl(new maplibregl.NavigationControl({showCompass:false}),'top-right');
-    map.on('load',renderMarkers);map.on('error',()=>{});
+    map.on('load',()=>{
+      // Esri 위성 raster source 미리 등록 (토글로 표시/숨김)
+      if(!map.getSource('satellite')){
+        map.addSource('satellite',{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256,attribution:'© Esri, Maxar, Earthstar Geographics'});
+        // 위성 위에 얹을 지명 라벨 (CARTO 라벨 전용)
+        map.addSource('sat-labels',{type:'raster',tiles:['https://basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}.png'],tileSize:256});
+        // 첫 심볼 레이어 아래에 위성을 깔아 라벨이 보이게
+        map.addLayer({id:'satellite-layer',type:'raster',source:'satellite',layout:{visibility:'none'}});
+        map.addLayer({id:'sat-labels-layer',type:'raster',source:'sat-labels',layout:{visibility:'none'}});
+      }
+      renderMarkers();
+    });
+    map.on('error',()=>{});
   }catch(e){mapLoadFailed();}
 }
+let mapMode='light'; // 'light' | 'satellite'
+function setMapMode(mode){
+  if(!map||!map.getLayer('satellite-layer'))return;
+  mapMode=mode;
+  const vis=mode==='satellite'?'visible':'none';
+  map.setLayoutProperty('satellite-layer','visibility',vis);
+  map.setLayoutProperty('sat-labels-layer','visibility',vis);
+  // 밝은 지도 베이스 레이어들 표시/숨김 (위성일 때 가림)
+  const style=map.getStyle();
+  style.layers.forEach(l=>{
+    if(l.id==='satellite-layer'||l.id==='sat-labels-layer')return;
+    if(l.type==='symbol')return; // 라벨은 위성에서 sat-labels가 대체
+    try{map.setLayoutProperty(l.id,'visibility',mode==='satellite'?'none':'visible');}catch(e){}
+  });
+  // 버튼 상태
+  document.querySelectorAll('.maptoggle button').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
+}
 function mapLoadFailed(){
+  const tg=document.querySelector('.maptoggle');if(tg)tg.style.display='none';
   const c=$('map');if(!c)return;c.style.height='auto';c.style.padding='18px';
   c.innerHTML='<div style="font-size:12px;color:var(--ink3);margin-bottom:12px">지도 타일을 불러오지 못했습니다. 아래에서 권역을 선택하세요.</div><div id="fb" style="display:flex;flex-wrap:wrap;gap:8px"></div>';
   const fb=$('fb');REGIONS.forEach(r=>{const b=document.createElement('button');b.textContent=r.name;b.style.cssText='font-size:12px;font-weight:600;padding:8px 12px;border:1px solid var(--line2);border-radius:9px;background:var(--card);color:var(--ink2);cursor:pointer';b.onclick=()=>{if(selected.has(r.name))selected.delete(r.name);else selected.add(r.name);b.style.background=selected.has(r.name)?'var(--primary)':'var(--card)';b.style.color=selected.has(r.name)?'#fff':'var(--ink2)';updateSelUI();if(lastResult)renderScope();};fb.appendChild(b);});markers={};
@@ -830,8 +939,8 @@ $('runBtn').onclick=async()=>{
   clearErr();const baseMonth=$('baseMonth').value;
   if(selected.size===0){showErr('지도에서 권역을 1개 이상 선택하세요');return;}
   const taskCount=allAreaTasks([...selected]).length;
-  if(taskCount>25){
-    if(!confirm(`선택한 권역의 법정동 ${taskCount}곳을 조회합니다. 다소 시간이 걸릴 수 있습니다(약 ${Math.ceil(taskCount*0.4)}초). 계속할까요?\n\n팁: 권역 수를 줄이면 더 빠릅니다.`))return;
+  if(taskCount>30){
+    if(!confirm(`선택한 ${selected.size}개 권역의 법정동 ${taskCount}곳을 조회합니다.\n공개 데이터 특성상 다소 시간이 걸리고(약 ${Math.ceil(taskCount*0.4)}초), 권역이 많으면 중간에 연결이 끊길 수 있습니다.\n\n권장: 한 번에 1~3개 권역만 선택하세요. 계속할까요?`))return;
   }
   $('runBtn').disabled=true;$('progress').classList.add('show');setStatus('busy','스캔 중');
   const regionNames=[...selected];const byRegion={};let failed=[];let totalRaw=0,totalParsed=0;const cutoff=new Date(new Date(baseMonth+'-01').getTime()-180*86400000);
@@ -978,7 +1087,7 @@ function renderScope(forceKey){
   if(hasGemini()&&insights.length){
     aiEnhanceInsight(insights,scopeName).then(txt=>{
       if(!txt)return;
-      const card=document.createElement('div');card.className='inscard signal';
+      const card=document.createElement('div');card.className='inscard signal ins-fullspan';
       card.innerHTML=`<div class="ins-row"><div class="ins-ic"><span class="material-symbols-outlined">auto_awesome</span></div><div><div class="ins-when">AI 종합 제언 <span class="ai-badge"><span class="material-symbols-outlined">smart_toy</span>${GEMINI_MODELS[0]}</span></div><div class="ins-msg">${mdToHtml(txt)}</div></div></div>`;
       ig.insertBefore(card,ig.firstChild);
     }).catch(()=>{});
